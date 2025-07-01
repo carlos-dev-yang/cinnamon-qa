@@ -1,0 +1,66 @@
+{
+  "name": "@cinnamon-qa/api-server",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "platform": "node",
+          "outputPath": "apps/api-server/dist",
+          "format": [
+            "cjs"
+          ],
+          "bundle": false,
+          "main": "apps/api-server/src/main.ts",
+          "tsConfig": "apps/api-server/tsconfig.app.json",
+          "assets": [
+            "apps/api-server/src/assets"
+          ],
+          "esbuildOptions": {
+            "sourcemap": true,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        },
+        "configurations": {
+          "development": {},
+          "production": {
+            "esbuildOptions": {
+              "sourcemap": false,
+              "outExtension": {
+                ".js": ".js"
+              }
+            }
+          }
+        }
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "@cinnamon-qa/api-server:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "@cinnamon-qa/api-server:build:development"
+          },
+          "production": {
+            "buildTarget": "@cinnamon-qa/api-server:build:production"
+          }
+        }
+      }
+    }
+  }
+}
