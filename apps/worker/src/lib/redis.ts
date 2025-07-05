@@ -1,5 +1,15 @@
 /**
- * Redis connection and queue management
+ * Redis connection and queue management for Worker
+ * 
+ * NOTE: This Redis client is specific to Worker's needs:
+ * - Polling jobs from queue (BRPOP)
+ * - Publishing progress updates
+ * 
+ * The API Server will have its own Redis client for:
+ * - Adding jobs to queue (LPUSH)
+ * - Subscribing to progress updates
+ * 
+ * TODO: Consider moving to a shared library when both apps need it
  */
 
 export class RedisQueue {
@@ -22,7 +32,7 @@ export class RedisQueue {
     console.log('🔌 Disconnecting from Redis...');
   }
 
-  async waitForJob(queueName: string, timeout: number = 10): Promise<any> {
+  async waitForJob(queueName: string, timeout = 10): Promise<any> {
     // TODO: Implement Redis BRPOP for job waiting
     console.log(`⏳ Waiting for job in queue: ${queueName} (timeout: ${timeout}s)`);
     
