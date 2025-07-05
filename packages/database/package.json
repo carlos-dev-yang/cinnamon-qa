@@ -1,0 +1,34 @@
+{
+  "name": "@cinnamon-qa/database",
+  "version": "1.0.0",
+  "description": "Database abstraction layer for Cinnamon QA",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "generate-types": "supabase gen types typescript --local > src/types/database.ts",
+    "migrate": "node dist/migrations/migrate.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "~5.8.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}
