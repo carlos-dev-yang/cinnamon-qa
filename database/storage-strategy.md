@@ -19,7 +19,7 @@ This document outlines the storage strategy for handling various types of data i
 - **Console/Network Logs**: Arrays of log entries
 
 ### 3. Binary/Large Data (Supabase Storage)
-- **Screenshots**: PNG/JPEG images of each step
+- **Screenshots**: WebP images of each step (optimized for size)
 - **Videos**: Full test execution recordings
 - **HAR Files**: Complete network activity logs
 - **Test Reports**: Generated HTML/PDF reports
@@ -44,7 +44,7 @@ PostgreSQL Database
 
 Supabase Storage
 ├── screenshots/ (bucket)
-│   └── {test_run_id}/{step_number}.png
+│   └── {test_run_id}/{step_number}.webp
 ├── test-artifacts/ (bucket)
 │   ├── videos/{test_run_id}/recording.mp4
 │   └── har/{test_run_id}/network.har
@@ -97,7 +97,7 @@ Supabase Storage
 ### 1. File Organization
 
 ```
-screenshots/{year}/{month}/{day}/{test_run_id}/{step_number}_{timestamp}.png
+screenshots/{year}/{month}/{day}/{test_run_id}/{step_number}_{timestamp}.webp
 test-artifacts/videos/{test_run_id}/recording_{timestamp}.mp4
 test-artifacts/har/{test_run_id}/network_{timestamp}.har
 reports/{year}/{month}/{test_run_id}/report_{timestamp}.html
@@ -242,13 +242,13 @@ async function saveScreenshot(
     const day = String(date.getDate()).padStart(2, '0');
     
     // Construct file path
-    const filePath = `${year}/${month}/${day}/${testRunId}/step_${testStepId}_${timestamp}.png`;
+    const filePath = `${year}/${month}/${day}/${testRunId}/step_${testStepId}_${timestamp}.webp`;
     
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
         .from('screenshots')
         .upload(filePath, screenshot, {
-            contentType: 'image/png',
+            contentType: 'image/webp',
             cacheControl: '3600'
         });
     
@@ -262,12 +262,13 @@ async function saveScreenshot(
             file_path: filePath,
             file_type: 'screenshot',
             file_size_bytes: screenshot.length,
-            mime_type: 'image/png',
+            mime_type: 'image/webp',
             test_run_id: testRunId,
             test_step_id: testStepId,
             metadata: {
-                compression: 'png',
-                quality: 85
+                format: 'webp',
+                quality: 80,
+                compression: 'lossy'
             }
         })
         .select('storage_url')
@@ -279,10 +280,18 @@ async function saveScreenshot(
 
 ### 7. Storage Optimization
 
-1. **Screenshot Compression**:
-   - Use WebP format for 30-50% smaller files
-   - Resize to max 1920x1080 if larger
-   - Quality setting: 85% for good balance
+1. **Screenshot Format Strategy**:
+   - **WebP (Primary)**: Default format for all QA screenshots
+     - 30-50% smaller than PNG (significant cost savings)
+     - Quality setting: 80% (optimal for QA debugging purposes)
+     - Excellent browser support (98%+ modern browsers)
+     - Supports both lossy and lossless compression
+   - **PNG (Future consideration)**: Only if pixel-perfect accuracy becomes required
+   - **Optimization benefits for QA platform**:
+     - Faster loading in test reports
+     - Reduced storage costs
+     - Better user experience when reviewing test results
+   - Resize to max 1920x1080 if larger to save bandwidth
 
 2. **DOM Snapshot Compression**:
    - Store only relevant elements
@@ -338,18 +347,27 @@ CREATE INDEX idx_test_config ON test_cases USING GIN (test_config);
 
 1. **Data Hygiene**:
    - Regular cleanup of old artifacts
-   - Monitor storage usage
+   - Monitor storage usage with dashboards
    - Compress large text data
+   - Set appropriate expiration dates based on test importance
 
 2. **Performance**:
    - Use partial indexes for common filters
    - Avoid storing huge objects in JSONB
    - Paginate when loading many screenshots
+   - Implement lazy loading for screenshot galleries
 
-3. **Reliability**:
+3. **Cost Optimization**:
+   - Use WebP for all screenshots (primary strategy)
+   - Monitor storage usage per test run
+   - Implement automatic cleanup policies
+   - Consider different retention periods for different test types
+
+4. **Reliability**:
    - Always store critical data in structured columns
    - Use JSONB for enhancement, not core functionality
    - Maintain referential integrity with foreign keys
+   - Test screenshot conversion pipelines thoroughly
 
 ## Storage Reference Benefits
 
