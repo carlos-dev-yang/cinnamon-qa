@@ -43,10 +43,13 @@ A web-based QA automation tool that analyzes natural language test scenarios thr
 - **Worker**: Separate Node.js processes
 
 ### 2.3 Database & Storage
-- **Database**: Supabase (PostgreSQL)
-- **File Storage**: Supabase Storage (WebP screenshots)
+- **Database**: Supabase (PostgreSQL with JSONB)
+- **File Storage**: Supabase Storage
+  - Screenshots: WebP format (80% quality)
+  - Artifacts: Videos, HAR files, Reports
 - **Cache**: Redis
 - **Data Access**: Repository pattern package
+- **Storage Management**: Automated lifecycle with expiration
 
 ### 2.4 AI & Testing
 - **AI Model**: Google Gemini
@@ -146,18 +149,35 @@ interface TestProgressEvent {
 
 ### 4.4 Enhanced Test Result Storage
 #### Stored Data
-- Complete test execution history
-- Step-by-step execution results with adaptations
-- WebP screenshots (90% quality)
+- Complete test execution history with adaptations
+- Step-by-step execution results with page states
+- WebP screenshots (80% quality, 1920x1080 max)
 - Page state snapshots (JSONB)
-- Console logs and network activity
+- Console logs and network activity (filtered)
 - Adaptation and recovery history
+- Storage references with automatic expiration
+
+#### Storage Organization
+```
+screenshots/{year}/{month}/{day}/{test_run_id}/{step_number}_{timestamp}.webp
+test-artifacts/videos/{test_run_id}/recording_{timestamp}.mp4
+test-artifacts/har/{test_run_id}/network_{timestamp}.har
+reports/{year}/{month}/{test_run_id}/report_{timestamp}.html
+```
+
+#### Lifecycle Management
+- Screenshots: 30 days retention (90 days for failed tests)
+- Videos: 7 days retention (premium feature)
+- HAR files: 30 days retention
+- Reports: 90 days retention
+- Automatic archival and cleanup
 
 #### Report Format
 - Interactive HTML report
 - Adaptation timeline view
 - Screenshot gallery with annotations
 - Performance metrics dashboard
+- Network activity analysis
 
 ### 4.5 Test Case Management
 #### Features
@@ -254,6 +274,23 @@ interface ContainerAllocation {
   allocatedAt: Date;
   releasedAt?: Date;
   status: 'active' | 'released';
+}
+
+interface StorageReference {
+  id: string;
+  bucketName: string;
+  filePath: string;
+  fileType: 'screenshot' | 'video' | 'har' | 'report';
+  fileSizeBytes: number;
+  mimeType: string;
+  testRunId?: string;
+  testStepId?: string;
+  metadata: Record<string, any>;
+  expiresAt: Date;
+  isArchived: boolean;
+  accessCount: number;
+  storageUrl: string;
+  createdAt: Date;
 }
 ```
 
@@ -438,15 +475,68 @@ interface TestJob {
 - Test execution duration
 - Adaptation frequency
 - AI API usage and costs
-- Storage consumption
+- Storage consumption and costs
+- File access patterns
+- Cleanup effectiveness
 
 ### 13.2 Dashboards
 - Real-time test execution monitor
 - Container health dashboard
 - Adaptation effectiveness report
+- Storage usage analytics
 - Cost analysis dashboard
 
-## 14. Appendix
+## 14. Storage Strategy
+
+### 14.1 Data Classification
+1. **Structured Data** (PostgreSQL)
+   - Test cases with adaptation patterns and reliability scores
+   - Test runs with adaptation/recovery counts
+   - Test steps with status tracking
+   - Container allocations for exclusive management
+   - Storage references with lifecycle tracking
+   
+2. **Semi-structured Data** (JSONB)
+   - Test configurations with adaptive mode settings
+   - Step targets with alternative selectors
+   - Page states (before/after snapshots)
+   - Adaptations and recovery attempts
+   - Compressed DOM snapshots
+   - Filtered console/network logs
+   
+3. **Binary Data** (Supabase Storage)
+   - WebP screenshots (80% quality, 1920x1080 max)
+   - Videos (Premium, 7-day retention)
+   - HAR files (network activity)
+   - HTML reports with adaptation timeline
+
+### 14.2 Storage Optimization
+- **WebP Format**: 30-50% smaller than PNG
+- **Quality Setting**: 80% for optimal QA debugging
+- **Resolution Cap**: 1920x1080 maximum
+- **Adaptive Compression**: Lossless for error states
+- **Smart Filtering**: All logs during adaptations, errors only otherwise
+- **DOM Compression**: Store only interactable elements
+
+### 14.3 Lifecycle Management
+- **Automatic Expiration**:
+  - Screenshots: 30 days (90 for failed/adapted tests)
+  - Videos: 7 days (premium feature)
+  - HAR files: 30 days
+  - Reports: 90 days
+- **Extended Retention**: +60 days for tests with adaptations
+- **Access Tracking**: Preserve frequently accessed files
+- **Scheduled Cleanup**: Daily archival at 2 AM
+- **Smart Archival**: Keep files with 5+ accesses
+
+### 14.4 Adaptive Testing Storage
+- **Adaptation Context**: Store before/after page states
+- **Recovery History**: Track all recovery attempts
+- **Pattern Learning**: Archive successful adaptations
+- **Confidence Tracking**: Store AI confidence scores
+- **Audit Trail**: Complete adaptation history
+
+## 15. Appendix
 
 ### 14.1 Glossary
 - **MCP**: Model Context Protocol
