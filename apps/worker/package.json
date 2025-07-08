@@ -2,6 +2,10 @@
   "name": "@cinnamon-qa/worker",
   "version": "0.0.1",
   "private": true,
+  "dependencies": {
+    "@cinnamon-qa/queue": "^1.0.0",
+    "@cinnamon-qa/database": "^1.0.0"
+  },
   "nx": {
     "targets": {
       "build": {

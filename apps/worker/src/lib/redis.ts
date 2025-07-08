@@ -1,47 +1,109 @@
 /**
  * Redis connection and queue management for Worker
  * 
- * NOTE: This Redis client is specific to Worker's needs:
- * - Polling jobs from queue (BRPOP)
- * - Publishing progress updates
- * 
- * The API Server will have its own Redis client for:
- * - Adding jobs to queue (LPUSH)
- * - Subscribing to progress updates
- * 
- * TODO: Consider moving to a shared library when both apps need it
+ * This module uses the shared @cinnamon-qa/queue package
+ * and provides worker-specific functionality.
  */
 
-export class RedisQueue {
-  private client: any = null; // TODO: Add proper Redis client type
-  
-  constructor() {
-    // TODO: Initialize Redis client
-  }
+import { 
+  getQueueManager, 
+  getRedisClient, 
+  QueueNames, 
+  TestExecutionProcessor,
+  JobProcessorFactory,
+  type TestJobData, 
+  type TestJobResult 
+} from '@cinnamon-qa/queue';
+
+export class WorkerRedisClient {
+  private queueManager = getQueueManager();
+  private redisClient = getRedisClient();
 
   async connect(): Promise<void> {
-    // TODO: Connect to Redis
-    console.log('🔗 Connecting to Redis...');
-    console.log('✅ Redis connection established');
-    // Temporary usage to avoid TypeScript error
-    if (this.client) console.log('Client ready');
+    console.log('🔗 Connecting Worker to Redis...');
+    await this.redisClient.connect();
+    console.log('✅ Worker Redis connection established');
   }
 
   async disconnect(): Promise<void> {
-    // TODO: Disconnect from Redis
-    console.log('🔌 Disconnecting from Redis...');
+    console.log('🔌 Disconnecting Worker from Redis...');
+    await this.queueManager.close();
+    await this.redisClient.disconnect();
   }
 
-  async waitForJob(queueName: string, timeout = 10): Promise<any> {
-    // TODO: Implement Redis BRPOP for job waiting
-    console.log(`⏳ Waiting for job in queue: ${queueName} (timeout: ${timeout}s)`);
+  /**
+   * Start processing test execution jobs
+   */
+  async startTestProcessor(): Promise<void> {
+    console.log('🚀 Starting test execution processor...');
     
-    // Placeholder: return null to simulate no jobs available
-    return null;
+    const processor = new TestExecutionProcessor();
+    
+    const worker = this.queueManager.createWorker(
+      QueueNames.TEST_EXECUTION,
+      async (job) => {
+        console.log(`📋 Processing test job ${job.id}:`, job.data);
+        return await processor.process(job);
+      },
+      {
+        concurrency: 1, // Process one test at a time
+        maxStalledCount: 1,
+        stalledInterval: 30000,
+      }
+    );
+
+    // Setup queue events monitoring
+    const queueEvents = this.queueManager.createQueueEvents(QueueNames.TEST_EXECUTION);
+    
+    console.log('✅ Test execution processor started');
   }
 
-  async publishProgress(channel: string, data: any): Promise<void> {
-    // TODO: Publish progress updates to Redis channel
-    console.log(`📡 Publishing progress to channel: ${channel}`, data);
+  /**
+   * Start processing cleanup jobs
+   */
+  async startCleanupProcessor(): Promise<void> {
+    console.log('🧹 Starting cleanup processor...');
+    
+    const processor = JobProcessorFactory.createProcessor('cleanup');
+    
+    const worker = this.queueManager.createWorker(
+      QueueNames.CLEANUP,
+      async (job) => {
+        console.log(`🗑️ Processing cleanup job ${job.id}`);
+        return await processor.process(job);
+      },
+      {
+        concurrency: 1,
+        maxStalledCount: 1,
+        stalledInterval: 60000,
+      }
+    );
+
+    console.log('✅ Cleanup processor started');
+  }
+
+  /**
+   * Health check for Redis connection
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      return await this.redisClient.healthCheck();
+    } catch (error) {
+      console.error('Worker Redis health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get queue statistics for monitoring
+   */
+  async getQueueStats() {
+    const testStats = await this.queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
+    const cleanupStats = await this.queueManager.getQueueStats(QueueNames.CLEANUP);
+    
+    return {
+      testExecution: testStats,
+      cleanup: cleanupStats,
+    };
   }
 }
