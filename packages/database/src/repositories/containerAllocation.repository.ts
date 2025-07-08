@@ -263,7 +263,7 @@ export class ContainerAllocationRepository extends BaseRepository<ContainerAlloc
   /**
    * Clean up stale allocations (containers that haven't reported in)
    */
-  async cleanupStaleAllocations(staleThresholdMinutes: number = 30): Promise<number> {
+  async cleanupStaleAllocations(staleThresholdMinutes = 30): Promise<number> {
     const staleThreshold = new Date(Date.now() - staleThresholdMinutes * 60 * 1000).toISOString();
     
     const { data, error } = await this.client.client
@@ -286,7 +286,7 @@ export class ContainerAllocationRepository extends BaseRepository<ContainerAlloc
   /**
    * Delete old allocation records
    */
-  async deleteOldRecords(olderThanDays: number = 30): Promise<number> {
+  async deleteOldRecords(olderThanDays = 30): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
     const { data, error } = await this.client.client

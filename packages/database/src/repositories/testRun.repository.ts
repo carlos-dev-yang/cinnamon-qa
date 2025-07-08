@@ -124,7 +124,7 @@ export class TestRunRepository {
   /**
    * Get recent test runs
    */
-  async findRecent(limit: number = 10): Promise<TestRun[]> {
+  async findRecent(limit = 10): Promise<TestRun[]> {
     const { data, error } = await this.client.client
       .from('test_runs')
       .select('*')

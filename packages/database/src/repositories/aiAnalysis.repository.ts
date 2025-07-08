@@ -380,7 +380,7 @@ export class AIAnalysisRepository extends BaseRepository<AIAnalysis, AIAnalysisI
    */
   async getConfidenceTrends(
     analysisType: AnalysisType,
-    days: number = 30
+    days = 30
   ): Promise<Array<{
     date: string;
     avgConfidence: number;
@@ -425,7 +425,7 @@ export class AIAnalysisRepository extends BaseRepository<AIAnalysis, AIAnalysisI
   /**
    * Delete old analysis records
    */
-  async deleteOldRecords(olderThanDays: number = 90): Promise<number> {
+  async deleteOldRecords(olderThanDays = 90): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
     const { data, error } = await this.client.client

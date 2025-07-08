@@ -231,7 +231,7 @@ export class StorageReferenceRepository extends BaseRepository<StorageReference,
   /**
    * Find storage references that haven't been accessed recently
    */
-  async findUnused(daysThreshold: number = 30): Promise<StorageReference[]> {
+  async findUnused(daysThreshold = 30): Promise<StorageReference[]> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
@@ -295,7 +295,7 @@ export class StorageReferenceRepository extends BaseRepository<StorageReference,
   /**
    * Clean up expired and archived storage references
    */
-  async cleanup(olderThanDays: number = 7): Promise<{
+  async cleanup(olderThanDays = 7): Promise<{
     deletedCount: number;
     deletedIds: string[];
   }> {

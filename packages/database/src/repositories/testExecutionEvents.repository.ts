@@ -86,7 +86,7 @@ export class TestExecutionEventsRepository extends BaseRepository<TestExecutionE
   /**
    * Get latest events for real-time monitoring
    */
-  async getLatestEvents(limit: number = 50): Promise<TestExecutionEvent[]> {
+  async getLatestEvents(limit = 50): Promise<TestExecutionEvent[]> {
     const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
@@ -311,7 +311,7 @@ export class TestExecutionEventsRepository extends BaseRepository<TestExecutionE
    */
   async getAdaptationEvents(
     testCaseId?: string,
-    limit: number = 100
+    limit = 100
   ): Promise<TestExecutionEvent[]> {
     let query = this.client.client
       .from(this.tableName)
@@ -439,7 +439,7 @@ export class TestExecutionEventsRepository extends BaseRepository<TestExecutionE
   /**
    * Delete old event records
    */
-  async deleteOldEvents(olderThanDays: number = 30): Promise<number> {
+  async deleteOldEvents(olderThanDays = 30): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
     const { data, error } = await this.client.client
