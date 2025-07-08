@@ -204,8 +204,8 @@ export class QueueManager {
    */
   async cleanQueue(
     queueName: string,
-    grace: number = 24 * 60 * 60 * 1000, // 24 hours
-    limit: number = 100
+    grace = 24 * 60 * 60 * 1000, // 24 hours
+    limit = 100
   ): Promise<void> {
     const queue = this.getQueue(queueName);
     await queue.clean(grace, limit, 'completed');

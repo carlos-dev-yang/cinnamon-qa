@@ -185,9 +185,9 @@ export class JobUtils {
    * Calculate job priority based on various factors
    */
   static calculatePriority(
-    isUrgent: boolean = false,
-    userPriority: number = 5,
-    queueLength: number = 0
+    isUrgent = false,
+    userPriority = 5,
+    queueLength = 0
   ): number {
     let priority = userPriority;
     
