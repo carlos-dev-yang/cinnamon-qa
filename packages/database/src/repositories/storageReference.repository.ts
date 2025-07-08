@@ -5,7 +5,7 @@
  */
 
 import { BaseRepository } from './base.repository';
-import type { StorageReference, StorageReferenceInsert, StorageReferenceUpdate } from '../types';
+import type { StorageReference, StorageReferenceInsert, StorageReferenceUpdate } from '../types/database';
 import { DatabaseError } from '../types';
 
 export class StorageReferenceRepository extends BaseRepository<StorageReference, StorageReferenceInsert, StorageReferenceUpdate> {
@@ -231,7 +231,7 @@ export class StorageReferenceRepository extends BaseRepository<StorageReference,
   /**
    * Find storage references that haven't been accessed recently
    */
-  async findUnused(daysThreshold: number = 30): Promise<StorageReference[]> {
+  async findUnused(daysThreshold = 30): Promise<StorageReference[]> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
@@ -270,10 +270,14 @@ export class StorageReferenceRepository extends BaseRepository<StorageReference,
     metadata?: Record<string, any>;
   }): Promise<StorageReference> {
     const insertData: StorageReferenceInsert = {
-      ...data,
-      created_at: new Date().toISOString(),
-      last_accessed_at: new Date().toISOString(),
-      access_count: 0,
+      bucket_name: data.bucket_name as any,
+      file_path: data.file_path,
+      file_type: data.file_type as any,
+      file_size_bytes: data.file_size_bytes,
+      mime_type: data.mime_type,
+      test_run_id: data.test_run_id,
+      test_step_id: data.test_step_id,
+      metadata: { was_adapted: false, ...(data.metadata || {}) } as any
     };
 
     return await this.create(insertData);
@@ -291,7 +295,7 @@ export class StorageReferenceRepository extends BaseRepository<StorageReference,
   /**
    * Clean up expired and archived storage references
    */
-  async cleanup(olderThanDays: number = 7): Promise<{
+  async cleanup(olderThanDays = 7): Promise<{
     deletedCount: number;
     deletedIds: string[];
   }> {

@@ -1,217 +1,171 @@
 /**
  * Test Case Repository
- * 
  * Handles all database operations related to test cases
  */
 
-import { BaseRepository } from './base.repository';
-import type { TestCase, TestCaseInsert, TestCaseUpdate } from '../types';
-import { DatabaseError } from '../types';
+import { DatabaseClient, db } from '../client';
+import type { 
+  TestCase, 
+  TestCaseInsert, 
+  TestCaseUpdate,
+  TestRun 
+} from '../types/database';
 
-export class TestCaseRepository extends BaseRepository<TestCase, TestCaseInsert, TestCaseUpdate> {
-  protected tableName = 'test_cases';
+export class TestCaseRepository {
+  private client: DatabaseClient;
+
+  constructor(client: DatabaseClient = db) {
+    this.client = client;
+  }
 
   /**
-   * Find test cases by name (partial match)
+   * Create a new test case
    */
-  async findByName(name: string): Promise<TestCase[]> {
-    try {
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select('*')
-        .ilike('name', `%${name}%`)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+  async create(data: TestCaseInsert): Promise<TestCase> {
+    const { data: result, error } = await this.client.client
+      .from('test_cases')
+      .insert(data)
+      .select()
+      .single();
 
-      if (error) {
-        throw new DatabaseError(`Failed to find test cases by name: ${error.message}`, error.code);
-      }
+    if (error) {
+      throw new Error(`Failed to create test case: ${error.message}`);
+    }
 
-      return data as TestCase[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test cases by name: ${error}`);
+    return result;
+  }
+
+  /**
+   * Get test case by ID
+   */
+  async findById(id: string): Promise<TestCase | null> {
+    const { data, error } = await this.client.client
+      .from('test_cases')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to get test case: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Get test case with test runs
+   */
+  async findByIdWithRuns(id: string): Promise<TestCase & { test_runs?: TestRun[] } | null> {
+    const { data, error } = await this.client.client
+      .from('test_cases')
+      .select(`
+        *,
+        test_runs (*)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to get test case with runs: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Update test case
+   */
+  async update(id: string, data: TestCaseUpdate): Promise<TestCase> {
+    const { data: result, error } = await this.client.client
+      .from('test_cases')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update test case: ${error.message}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Delete test case
+   */
+  async delete(id: string): Promise<void> {
+    const { error } = await this.client.client
+      .from('test_cases')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to delete test case: ${error.message}`);
     }
   }
 
   /**
-   * Find test cases by tags
+   * List all test cases
    */
-  async findByTags(tags: string[]): Promise<TestCase[]> {
-    try {
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select('*')
-        .overlaps('tags', tags)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw new DatabaseError(`Failed to find test cases by tags: ${error.message}`, error.code);
-      }
-
-      return data as TestCase[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test cases by tags: ${error}`);
-    }
-  }
-
-  /**
-   * Find test cases with their latest test run
-   */
-  async findWithLatestRun(): Promise<(TestCase & { latest_run?: any })[]> {
-    try {
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select(`
-          *,
-          test_runs!inner (
-            id,
-            status,
-            created_at,
-            duration_ms,
-            total_steps,
-            completed_steps,
-            failed_steps
-          )
-        `)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw new DatabaseError(`Failed to find test cases with runs: ${error.message}`, error.code);
-      }
-
-      return data as any[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test cases with runs: ${error}`);
-    }
-  }
-
-  /**
-   * Duplicate a test case
-   */
-  async duplicate(id: string, newName?: string): Promise<TestCase> {
-    try {
-      // First, get the original test case
-      const original = await this.findByIdOrThrow(id);
-
-      // Create a copy with new name
-      const duplicateData: TestCaseInsert = {
-        name: newName || `${original.name} (Copy)`,
-        url: original.url,
-        original_scenario: original.original_scenario,
-        refined_scenario: original.refined_scenario,
-        test_config: original.test_config,
-        tags: original.tags,
-        created_by: original.created_by,
-      };
-
-      return await this.create(duplicateData);
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error duplicating test case: ${error}`);
-    }
-  }
-
-  /**
-   * Archive a test case (soft delete)
-   */
-  async archive(id: string): Promise<TestCase> {
-    return await this.updateById(id, { is_active: false } as TestCaseUpdate);
-  }
-
-  /**
-   * Restore an archived test case
-   */
-  async restore(id: string): Promise<TestCase> {
-    return await this.updateById(id, { is_active: true } as TestCaseUpdate);
-  }
-
-  /**
-   * Find active test cases only
-   */
-  async findActive(options?: {
+  async findAll(options?: {
     limit?: number;
     offset?: number;
     orderBy?: string;
     ascending?: boolean;
   }): Promise<TestCase[]> {
-    try {
-      let query = this.client.client
-        .from(this.tableName)
-        .select('*')
-        .eq('is_active', true);
+    let query = this.client.client
+      .from('test_cases')
+      .select('*');
 
-      if (options?.orderBy) {
-        query = query.order(options.orderBy, { ascending: options.ascending ?? true });
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
-
-      if (options?.limit) {
-        query = query.limit(options.limit);
-      }
-
-      if (options?.offset) {
-        query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw new DatabaseError(`Failed to find active test cases: ${error.message}`, error.code);
-      }
-
-      return data as TestCase[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding active test cases: ${error}`);
+    if (options?.orderBy) {
+      query = query.order(options.orderBy, { ascending: options.ascending ?? true });
     }
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options?.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to list test cases: ${error.message}`);
+    }
+
+    return data || [];
   }
 
   /**
-   * Get test case statistics
+   * Search test cases by name or tags
    */
-  async getStatistics(): Promise<{
-    total: number;
-    active: number;
-    archived: number;
-    withRuns: number;
-  }> {
-    try {
-      const [totalCount, activeCount, withRunsResult] = await Promise.all([
-        this.count(),
-        this.count({ is_active: true }),
-        this.client.client
-          .from(this.tableName)
-          .select('id')
-          .eq('is_active', true)
-          .in('id', [])
-      ]);
+  async search(searchTerm: string): Promise<TestCase[]> {
+    const { data, error } = await this.client.client
+      .from('test_cases')
+      .select('*')
+      .or(`name.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
+      .order('created_at', { ascending: false });
 
-      const withRuns = withRunsResult.data?.length || 0;
+    if (error) {
+      throw new Error(`Failed to search test cases: ${error.message}`);
+    }
 
-      return {
-        total: totalCount,
-        active: activeCount,
-        archived: totalCount - activeCount,
-        withRuns,
-      };
-    } catch (error) {
-      throw new DatabaseError(`Failed to get test case statistics: ${error}`);
+    return data || [];
+  }
+
+  /**
+   * Update reliability score
+   */
+  async updateReliabilityScore(id: string, score: number): Promise<void> {
+    const { error } = await this.client.client
+      .from('test_cases')
+      .update({ reliability_score: score })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to update reliability score: ${error.message}`);
     }
   }
 }

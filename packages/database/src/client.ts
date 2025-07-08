@@ -6,6 +6,12 @@
  * (Prisma, Drizzle, etc.) without changing the application code.
  */
 
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types/database';
 import { DatabaseError } from './types';
