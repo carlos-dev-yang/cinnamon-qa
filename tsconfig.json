@@ -11,6 +11,12 @@
     },
     {
       "path": "./worker"
+    },
+    {
+      "path": "./packages"
+    },
+    {
+      "path": "./packages/containers"
     }
   ]
 }
