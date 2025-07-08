@@ -2,18 +2,24 @@ import { BaseRepository } from './base.repository';
 import type { 
   ContainerAllocation, 
   ContainerAllocationInsert, 
-  ContainerAllocationUpdate,
-  ContainerStatus 
+  ContainerAllocationUpdate
 } from '../types/database';
 
-export class ContainerAllocationRepository extends BaseRepository {
-  private readonly tableName = 'container_allocations';
+type ContainerStatus = 'allocated' | 'in_use' | 'idle' | 'terminated' | 'error';
+type ContainerMetadata = {
+  health: string;
+  resourceUsage: Record<string, any>;
+  errorCount: number;
+};
+
+export class ContainerAllocationRepository extends BaseRepository<ContainerAllocation, ContainerAllocationInsert, ContainerAllocationUpdate> {
+  protected readonly tableName = 'container_allocations';
 
   /**
    * Create a new container allocation
    */
   async create(data: ContainerAllocationInsert): Promise<ContainerAllocation> {
-    const { data: result, error } = await this.client
+    const { data: result, error } = await this.client.client
       .from(this.tableName)
       .insert(data)
       .select()
@@ -30,7 +36,7 @@ export class ContainerAllocationRepository extends BaseRepository {
    * Get container allocation by ID
    */
   async getById(id: string): Promise<ContainerAllocation | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('id', id)
@@ -47,7 +53,7 @@ export class ContainerAllocationRepository extends BaseRepository {
    * Get container allocation by container ID
    */
   async getByContainerId(containerId: string): Promise<ContainerAllocation | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('container_id', containerId)
@@ -66,7 +72,7 @@ export class ContainerAllocationRepository extends BaseRepository {
    * Get active container allocation for a test run
    */
   async getActiveByTestRunId(testRunId: string): Promise<ContainerAllocation | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_run_id', testRunId)
@@ -84,7 +90,7 @@ export class ContainerAllocationRepository extends BaseRepository {
    * Get all active container allocations
    */
   async getActiveAllocations(): Promise<ContainerAllocation[]> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('status', 'active')
@@ -102,7 +108,7 @@ export class ContainerAllocationRepository extends BaseRepository {
    */
   async getAvailableContainers(): Promise<string[]> {
     // Get all container IDs that are not currently active
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('container_id')
       .neq('status', 'active')
@@ -113,7 +119,7 @@ export class ContainerAllocationRepository extends BaseRepository {
     }
 
     // Return unique container IDs
-    const containerIds = data?.map(item => item.container_id) || [];
+    const containerIds = data?.map((item: any) => item.container_id) || [];
     return [...new Set(containerIds)];
   }
 
@@ -123,7 +129,7 @@ export class ContainerAllocationRepository extends BaseRepository {
   async allocateContainer(containerId: string, testRunId: string): Promise<ContainerAllocation> {
     // First check if container is available
     const existing = await this.getByContainerId(containerId);
-    if (existing && existing.status === 'active') {
+    if (existing && existing.status === 'in_use') {
       throw new Error(`Container ${containerId} is already allocated`);
     }
 
@@ -131,7 +137,7 @@ export class ContainerAllocationRepository extends BaseRepository {
     const allocation: ContainerAllocationInsert = {
       container_id: containerId,
       test_run_id: testRunId,
-      status: 'active',
+      status: 'in_use',
       metadata: {
         health: 'healthy',
         resourceUsage: {},
@@ -146,10 +152,10 @@ export class ContainerAllocationRepository extends BaseRepository {
    * Release a container allocation
    */
   async releaseContainer(containerId: string): Promise<ContainerAllocation | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .update({
-        status: 'released',
+        status: 'terminated',
         released_at: new Date().toISOString()
       } as ContainerAllocationUpdate)
       .eq('container_id', containerId)
@@ -175,14 +181,14 @@ export class ContainerAllocationRepository extends BaseRepository {
     const updateData: ContainerAllocationUpdate = { status };
     
     if (metadata) {
-      updateData.metadata = metadata;
+      updateData.metadata = metadata as ContainerMetadata;
     }
 
-    if (status === 'released') {
+    if (status === 'terminated') {
       updateData.released_at = new Date().toISOString();
     }
 
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .update(updateData)
       .eq('container_id', containerId)
@@ -206,7 +212,7 @@ export class ContainerAllocationRepository extends BaseRepository {
     resourceUsage?: Record<string, any>
   ): Promise<void> {
     const allocation = await this.getByContainerId(containerId);
-    if (!allocation || allocation.status !== 'active') {
+    if (!allocation || allocation.status !== 'in_use') {
       return; // Container not active, skip health update
     }
 
@@ -217,7 +223,7 @@ export class ContainerAllocationRepository extends BaseRepository {
       ...(resourceUsage && { resourceUsage })
     };
 
-    await this.client
+    await this.client.client
       .from(this.tableName)
       .update({ metadata: updatedMetadata } as ContainerAllocationUpdate)
       .eq('id', allocation.id);
@@ -232,7 +238,7 @@ export class ContainerAllocationRepository extends BaseRepository {
     available: number;
     avgDurationMinutes: number;
   }> {
-    const { data: stats, error } = await this.client
+    const { data: stats, error } = await this.client.client
       .from('container_utilization')
       .select('*');
 
@@ -260,7 +266,7 @@ export class ContainerAllocationRepository extends BaseRepository {
   async cleanupStaleAllocations(staleThresholdMinutes: number = 30): Promise<number> {
     const staleThreshold = new Date(Date.now() - staleThresholdMinutes * 60 * 1000).toISOString();
     
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .update({
         status: 'error',
@@ -283,7 +289,7 @@ export class ContainerAllocationRepository extends BaseRepository {
   async deleteOldRecords(olderThanDays: number = 30): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .delete()
       .neq('status', 'active')

@@ -1,288 +1,160 @@
 /**
  * Test Run Repository
- * 
  * Handles all database operations related to test runs
  */
 
-import { BaseRepository } from './base.repository';
-import type { TestRun, TestRunInsert, TestRunUpdate, TestRunStatus } from '../types';
-import { DatabaseError } from '../types';
+import { DatabaseClient, db } from '../client';
+import type { 
+  TestRun, 
+  TestRunInsert, 
+  TestRunUpdate,
+  TestStep 
+} from '../types/database';
 
-export class TestRunRepository extends BaseRepository<TestRun, TestRunInsert, TestRunUpdate> {
-  protected tableName = 'test_runs';
+export class TestRunRepository {
+  private client: DatabaseClient;
+
+  constructor(client: DatabaseClient = db) {
+    this.client = client;
+  }
 
   /**
-   * Find test runs by test case ID
+   * Create a new test run
    */
-  async findByTestCaseId(testCaseId: string, options?: {
-    limit?: number;
-    offset?: number;
-  }): Promise<TestRun[]> {
-    try {
-      let query = this.client.client
-        .from(this.tableName)
-        .select('*')
-        .eq('test_case_id', testCaseId)
-        .order('created_at', { ascending: false });
+  async create(data: TestRunInsert): Promise<TestRun> {
+    const { data: result, error } = await this.client.client
+      .from('test_runs')
+      .insert(data)
+      .select()
+      .single();
 
-      if (options?.limit) {
-        query = query.limit(options.limit);
-      }
+    if (error) {
+      throw new Error(`Failed to create test run: ${error.message}`);
+    }
 
-      if (options?.offset) {
-        query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
-      }
+    return result;
+  }
 
-      const { data, error } = await query;
+  /**
+   * Get test run by ID
+   */
+  async findById(id: string): Promise<TestRun | null> {
+    const { data, error } = await this.client.client
+      .from('test_runs')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-      if (error) {
-        throw new DatabaseError(`Failed to find test runs by test case: ${error.message}`, error.code);
-      }
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to get test run: ${error.message}`);
+    }
 
-      return data as TestRun[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test runs by test case: ${error}`);
+    return data;
+  }
+
+  /**
+   * Get test run with steps
+   */
+  async findByIdWithSteps(id: string): Promise<TestRun & { test_steps?: TestStep[] } | null> {
+    const { data, error } = await this.client.client
+      .from('test_runs')
+      .select(`
+        *,
+        test_steps (*)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to get test run with steps: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Update test run
+   */
+  async update(id: string, data: TestRunUpdate): Promise<TestRun> {
+    const { data: result, error } = await this.client.client
+      .from('test_runs')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update test run: ${error.message}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Delete test run
+   */
+  async delete(id: string): Promise<void> {
+    const { error } = await this.client.client
+      .from('test_runs')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to delete test run: ${error.message}`);
     }
   }
 
   /**
-   * Find test runs by status
+   * Get test runs by test case ID
    */
-  async findByStatus(status: TestRunStatus): Promise<TestRun[]> {
-    try {
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select('*')
-        .eq('status', status)
-        .order('created_at', { ascending: false });
+  async findByTestCaseId(testCaseId: string): Promise<TestRun[]> {
+    const { data, error } = await this.client.client
+      .from('test_runs')
+      .select('*')
+      .eq('test_case_id', testCaseId)
+      .order('created_at', { ascending: false });
 
-      if (error) {
-        throw new DatabaseError(`Failed to find test runs by status: ${error.message}`, error.code);
-      }
-
-      return data as TestRun[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test runs by status: ${error}`);
+    if (error) {
+      throw new Error(`Failed to get test runs by test case: ${error.message}`);
     }
-  }
 
-  /**
-   * Find test run with test steps
-   */
-  async findWithSteps(id: string): Promise<TestRun & { test_steps: any[] } | null> {
-    try {
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select(`
-          *,
-          test_steps (
-            id,
-            step_number,
-            action,
-            target,
-            input_data,
-            status,
-            started_at,
-            completed_at,
-            duration_ms,
-            error_type,
-            error_message,
-            snapshot_path,
-            created_at
-          )
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null;
-        }
-        throw new DatabaseError(`Failed to find test run with steps: ${error.message}`, error.code);
-      }
-
-      return data as any;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding test run with steps: ${error}`);
-    }
-  }
-
-  /**
-   * Update test run status
-   */
-  async updateStatus(id: string, status: TestRunStatus, additionalData?: {
-    started_at?: string;
-    completed_at?: string;
-    error_summary?: string;
-  }): Promise<TestRun> {
-    try {
-      const updateData: TestRunUpdate = {
-        status,
-        ...additionalData,
-      };
-
-      // Auto-set timestamps based on status
-      if (status === 'running' && !additionalData?.started_at) {
-        updateData.started_at = new Date().toISOString();
-      } else if (['completed', 'failed', 'cancelled'].includes(status) && !additionalData?.completed_at) {
-        updateData.completed_at = new Date().toISOString();
-      }
-
-      return await this.updateById(id, updateData);
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error updating test run status: ${error}`);
-    }
-  }
-
-  /**
-   * Update step counts
-   */
-  async updateStepCounts(id: string, counts: {
-    total_steps?: number;
-    completed_steps?: number;
-    failed_steps?: number;
-    skipped_steps?: number;
-  }): Promise<TestRun> {
-    return await this.updateById(id, counts as TestRunUpdate);
+    return data || [];
   }
 
   /**
    * Get recent test runs
    */
-  async findRecent(days: number = 7, limit: number = 50): Promise<TestRun[]> {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - days);
+  async findRecent(limit: number = 10): Promise<TestRun[]> {
+    const { data, error } = await this.client.client
+      .from('test_runs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select('*')
-        .gte('created_at', cutoffDate.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (error) {
-        throw new DatabaseError(`Failed to find recent test runs: ${error.message}`, error.code);
-      }
-
-      return data as TestRun[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding recent test runs: ${error}`);
+    if (error) {
+      throw new Error(`Failed to get recent test runs: ${error.message}`);
     }
+
+    return data || [];
   }
 
   /**
-   * Get test run statistics
+   * Update test run status
    */
-  async getStatistics(testCaseId?: string): Promise<{
-    total: number;
-    completed: number;
-    failed: number;
-    running: number;
-    pending: number;
-    averageDuration: number | null;
-    successRate: number;
-  }> {
-    try {
-      let baseQuery = this.client.client.from(this.tableName).select('*');
-      
-      if (testCaseId) {
-        baseQuery = baseQuery.eq('test_case_id', testCaseId);
-      }
-
-      const { data, error } = await baseQuery;
-
-      if (error) {
-        throw new DatabaseError(`Failed to get test run statistics: ${error.message}`, error.code);
-      }
-
-      const runs = data as TestRun[];
-      const total = runs.length;
-      const completed = runs.filter(r => r.status === 'completed').length;
-      const failed = runs.filter(r => r.status === 'failed').length;
-      const running = runs.filter(r => r.status === 'running').length;
-      const pending = runs.filter(r => r.status === 'pending').length;
-
-      const completedRuns = runs.filter(r => r.status === 'completed' && r.duration_ms);
-      const averageDuration = completedRuns.length > 0
-        ? completedRuns.reduce((sum, r) => sum + (r.duration_ms || 0), 0) / completedRuns.length
-        : null;
-
-      const successRate = total > 0 ? (completed / total) * 100 : 0;
-
-      return {
-        total,
-        completed,
-        failed,
-        running,
-        pending,
-        averageDuration,
-        successRate,
-      };
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error getting test run statistics: ${error}`);
+  async updateStatus(id: string, status: TestRun['status']): Promise<void> {
+    const updateData: TestRunUpdate = { status };
+    
+    if (status === 'completed' || status === 'failed' || status === 'adapted') {
+      updateData.completed_at = new Date().toISOString();
     }
-  }
 
-  /**
-   * Cancel a running test
-   */
-  async cancel(id: string, reason?: string): Promise<TestRun> {
-    return await this.updateStatus(id, 'cancelled', {
-      completed_at: new Date().toISOString(),
-      error_summary: reason || 'Test cancelled by user',
-    });
-  }
+    const { error } = await this.client.client
+      .from('test_runs')
+      .update(updateData)
+      .eq('id', id);
 
-  /**
-   * Find running tests (for monitoring)
-   */
-  async findRunning(): Promise<TestRun[]> {
-    return await this.findByStatus('running');
-  }
-
-  /**
-   * Find long-running tests (potentially stuck)
-   */
-  async findLongRunning(minutesThreshold: number = 30): Promise<TestRun[]> {
-    try {
-      const cutoffTime = new Date();
-      cutoffTime.setMinutes(cutoffTime.getMinutes() - minutesThreshold);
-
-      const { data, error } = await this.client.client
-        .from(this.tableName)
-        .select('*')
-        .eq('status', 'running')
-        .lt('started_at', cutoffTime.toISOString());
-
-      if (error) {
-        throw new DatabaseError(`Failed to find long-running tests: ${error.message}`, error.code);
-      }
-
-      return data as TestRun[];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError(`Unexpected error finding long-running tests: ${error}`);
+    if (error) {
+      throw new Error(`Failed to update test run status: ${error.message}`);
     }
   }
 }

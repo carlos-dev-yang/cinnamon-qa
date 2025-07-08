@@ -1,19 +1,21 @@
 import { BaseRepository } from './base.repository';
 import type { 
   TestExecutionEvent, 
-  TestExecutionEventInsert, 
-  EventType,
-  StepAdaptation 
+  TestExecutionEventInsert,
+  TestExecutionEventUpdate
 } from '../types/database';
 
-export class TestExecutionEventsRepository extends BaseRepository {
-  private readonly tableName = 'test_execution_events';
+type EventType = string;
+type StepAdaptation = any;
+
+export class TestExecutionEventsRepository extends BaseRepository<TestExecutionEvent, TestExecutionEventInsert, TestExecutionEventUpdate> {
+  protected readonly tableName = 'test_execution_events';
 
   /**
    * Create a new test execution event
    */
   async create(data: TestExecutionEventInsert): Promise<TestExecutionEvent> {
-    const { data: result, error } = await this.client
+    const { data: result, error } = await this.client.client
       .from(this.tableName)
       .insert(data)
       .select()
@@ -30,7 +32,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
    * Get events for a test run
    */
   async getByTestRunId(testRunId: string): Promise<TestExecutionEvent[]> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_run_id', testRunId)
@@ -47,7 +49,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
    * Get events for a test step
    */
   async getByTestStepId(testStepId: string): Promise<TestExecutionEvent[]> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_step_id', testStepId)
@@ -67,7 +69,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
     testRunId: string, 
     eventType: EventType
   ): Promise<TestExecutionEvent[]> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_run_id', testRunId)
@@ -85,7 +87,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
    * Get latest events for real-time monitoring
    */
   async getLatestEvents(limit: number = 50): Promise<TestExecutionEvent[]> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .order('created_at', { ascending: false })
@@ -311,7 +313,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
     testCaseId?: string,
     limit: number = 100
   ): Promise<TestExecutionEvent[]> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select(`
         *,
@@ -346,7 +348,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
     adaptationRate: number;
     recoverySuccessRate: number;
   }> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select('event_type, event_data');
 
@@ -417,7 +419,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
     testRunId: string,
     callback: (event: TestExecutionEvent) => void
   ) {
-    return this.client
+    return this.client.client
       .channel(`test_run_${testRunId}`)
       .on(
         'postgres_changes',
@@ -440,7 +442,7 @@ export class TestExecutionEventsRepository extends BaseRepository {
   async deleteOldEvents(olderThanDays: number = 30): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .delete()
       .lt('created_at', threshold)

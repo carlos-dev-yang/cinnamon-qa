@@ -2,18 +2,19 @@ import { BaseRepository } from './base.repository';
 import type { 
   AIAnalysis, 
   AIAnalysisInsert, 
-  AIAnalysisUpdate,
-  AnalysisType 
+  AIAnalysisUpdate
 } from '../types/database';
 
-export class AIAnalysisRepository extends BaseRepository {
-  private readonly tableName = 'ai_analysis';
+type AnalysisType = 'scenario_analysis' | 'step_generation' | 'adaptation' | 'validation' | 'recovery';
+
+export class AIAnalysisRepository extends BaseRepository<AIAnalysis, AIAnalysisInsert, AIAnalysisUpdate> {
+  protected readonly tableName = 'ai_analysis';
 
   /**
    * Create a new AI analysis record
    */
   async create(data: AIAnalysisInsert): Promise<AIAnalysis> {
-    const { data: result, error } = await this.client
+    const { data: result, error } = await this.client.client
       .from(this.tableName)
       .insert(data)
       .select()
@@ -30,7 +31,7 @@ export class AIAnalysisRepository extends BaseRepository {
    * Get AI analysis by ID
    */
   async getById(id: string): Promise<AIAnalysis | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('id', id)
@@ -47,7 +48,7 @@ export class AIAnalysisRepository extends BaseRepository {
    * Get AI analyses for a test case
    */
   async getByTestCaseId(testCaseId: string, analysisType?: AnalysisType): Promise<AIAnalysis[]> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_case_id', testCaseId)
@@ -70,7 +71,7 @@ export class AIAnalysisRepository extends BaseRepository {
    * Get AI analyses for a test run
    */
   async getByTestRunId(testRunId: string, analysisType?: AnalysisType): Promise<AIAnalysis[]> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_run_id', testRunId)
@@ -93,7 +94,7 @@ export class AIAnalysisRepository extends BaseRepository {
    * Get AI analyses for a test step
    */
   async getByTestStepId(testStepId: string, analysisType?: AnalysisType): Promise<AIAnalysis[]> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_step_id', testStepId)
@@ -119,7 +120,7 @@ export class AIAnalysisRepository extends BaseRepository {
     testCaseId: string, 
     analysisType: AnalysisType
   ): Promise<AIAnalysis | null> {
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('*')
       .eq('test_case_id', testCaseId)
@@ -279,7 +280,7 @@ export class AIAnalysisRepository extends BaseRepository {
       avgProcessingTime: number;
     }>;
   }> {
-    let query = this.client
+    let query = this.client.client
       .from(this.tableName)
       .select('analysis_type, prompt_tokens, completion_tokens, processing_time_ms');
 
@@ -346,7 +347,13 @@ export class AIAnalysisRepository extends BaseRepository {
     );
 
     // Calculate averages and finalize by-type stats
-    const finalByType: Record<AnalysisType, any> = {};
+    const finalByType: Record<AnalysisType, any> = {
+      scenario_analysis: {},
+      step_generation: {},
+      adaptation: {},
+      validation: {},
+      recovery: {}
+    };
     Object.entries(stats.byType).forEach(([type, typeStats]: [string, any]) => {
       finalByType[type as AnalysisType] = {
         count: typeStats.count,
@@ -381,7 +388,7 @@ export class AIAnalysisRepository extends BaseRepository {
   }>> {
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .select('created_at, confidence_score')
       .eq('analysis_type', analysisType)
@@ -421,7 +428,7 @@ export class AIAnalysisRepository extends BaseRepository {
   async deleteOldRecords(olderThanDays: number = 90): Promise<number> {
     const threshold = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
     
-    const { data, error } = await this.client
+    const { data, error } = await this.client.client
       .from(this.tableName)
       .delete()
       .lt('created_at', threshold)

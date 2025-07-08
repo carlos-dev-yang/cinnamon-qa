@@ -7,7 +7,7 @@
 
 export type TestStatus = 'pending' | 'running' | 'completed' | 'failed' | 'adapted' | 'cancelled';
 export type StepStatus = 'pending' | 'running' | 'success' | 'failed' | 'adapted' | 'skipped';
-export type ContainerStatus = 'active' | 'released' | 'error' | 'cleaning';
+export type ContainerStatus = 'allocated' | 'in_use' | 'idle' | 'terminated' | 'error';
 export type FileType = 'screenshot' | 'video' | 'har' | 'report';
 export type BucketName = 'screenshots' | 'test-artifacts' | 'reports';
 export type AnalysisType = 'scenario_analysis' | 'step_generation' | 'adaptation' | 'validation' | 'recovery';
@@ -547,7 +547,6 @@ export interface Database {
 // ===== UTILITY TYPES =====
 
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
-export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T];
 
 // ===== TYPE ALIASES FOR EASIER IMPORT =====
 export type TestCase = Tables<'test_cases'>;
