@@ -4,6 +4,8 @@ import { SimpleHealthChecker } from './health-checker';
 import { DockerInspector } from './docker-inspector';
 import { AllocationQueue, QueuedRequest } from './allocation-queue';
 import { HealthMonitor, ContainerHealthStatus } from './health-monitor';
+import { CleanupService } from './cleanup-service';
+import { ContainerResetManager } from './container-reset-manager';
 import { Container, ContainerState, ContainerPoolConfig } from './types';
 
 export interface PoolMetrics {
@@ -24,6 +26,8 @@ export class ContainerPoolManager {
   private redisClient: RedisClient;
   private allocationQueue: AllocationQueue;
   private healthMonitor: HealthMonitor;
+  private cleanupService: CleanupService;
+  private resetManager: ContainerResetManager;
   
   // Metrics
   private metrics: PoolMetrics = {
@@ -51,9 +55,13 @@ export class ContainerPoolManager {
     this.dockerInspector = new DockerInspector();
     this.allocationQueue = new AllocationQueue(redisClient);
     this.healthMonitor = new HealthMonitor(redisClient);
+    this.cleanupService = new CleanupService();
+    this.resetManager = new ContainerResetManager(this.cleanupService, this.healthChecker);
     
-    // Setup health monitor event listeners
+    // Setup event listeners
     this.setupHealthMonitorEvents();
+    this.setupCleanupEvents();
+    this.setupResetEvents();
   }
 
   /**
@@ -79,23 +87,62 @@ export class ContainerPoolManager {
   }
 
   /**
-   * Handle unhealthy container
+   * Setup cleanup service event listeners
+   */
+  private setupCleanupEvents(): void {
+    this.cleanupService.on('cleanupStarted', (event) => {
+      console.log(`🧹 Cleanup started for container ${event.containerName}`);
+    });
+
+    this.cleanupService.on('cleanupCompleted', (event) => {
+      console.log(`✅ Cleanup completed for container ${event.containerName}`);
+    });
+
+    this.cleanupService.on('cleanupFailed', (event) => {
+      console.warn(`⚠️ Cleanup failed for container ${event.containerName}:`, event.result.errors);
+    });
+  }
+
+  /**
+   * Setup reset manager event listeners
+   */
+  private setupResetEvents(): void {
+    this.resetManager.on('resetStarted', (event) => {
+      console.log(`🔄 Container reset started for ${event.containerName} (${event.reason})`);
+    });
+
+    this.resetManager.on('resetCompleted', (event) => {
+      console.log(`✅ Container reset completed for ${event.containerName} using ${event.strategy}`);
+    });
+
+    this.resetManager.on('resetFailed', (event) => {
+      console.error(`❌ Container reset failed for ${event.containerName}:`, event.result.errors);
+    });
+  }
+
+  /**
+   * Handle unhealthy container with reset manager
    */
   private async handleUnhealthyContainer(containerId: string): Promise<void> {
     const container = this.containers.get(containerId);
     if (!container) return;
 
     try {
-      console.log(`Attempting to restart unhealthy container ${containerId}`);
-      await container.restart();
+      console.log(`Handling unhealthy container ${containerId} with reset manager`);
       
-      // Re-register with health monitor after restart
-      this.healthMonitor.registerContainer(containerId, container.name, container.port);
+      // Use reset manager instead of simple restart
+      const resetResult = await this.resetManager.resetOnHealthFailure(container);
       
-      console.log(`Container ${containerId} restarted successfully`);
+      if (resetResult?.success) {
+        // Re-register with health monitor after successful reset
+        this.healthMonitor.registerContainer(containerId, container.name, container.port);
+        console.log(`Container ${containerId} reset and re-registered successfully`);
+      } else {
+        console.error(`Failed to reset container ${containerId}:`, resetResult?.errors);
+        // Mark container as problematic (in production, might trigger replacement)
+      }
     } catch (error) {
-      console.error(`Failed to restart container ${containerId}:`, error);
-      // In a production environment, this might trigger an alert or mark for replacement
+      console.error(`Failed to handle unhealthy container ${containerId}:`, error);
     }
   }
 
@@ -238,6 +285,12 @@ export class ContainerPoolManager {
       }
     }
 
+    // Perform reset on allocation if enabled
+    const resetResult = await this.resetManager.resetOnAllocation(containerObj);
+    if (resetResult && !resetResult.success) {
+      console.warn(`Reset on allocation failed for ${availableContainer.containerId}, proceeding anyway`);
+    }
+
     // Allocate container
     await this.markAsAllocated(availableContainer.containerId, testRunId);
     if (containerObj) {
@@ -290,13 +343,20 @@ export class ContainerPoolManager {
   }
 
   /**
-   * Release a container
+   * Release a container with cleanup
    */
   async releaseContainer(containerId: string): Promise<void> {
     const container = this.containers.get(containerId);
     if (!container) {
       console.error(`Container ${containerId} not found`);
       return;
+    }
+
+    // Perform reset on release if enabled
+    const resetResult = await this.resetManager.resetOnRelease(container);
+    if (resetResult && !resetResult.success) {
+      console.warn(`Reset on release failed for ${containerId}:`, resetResult.errors);
+      // Continue with release even if reset failed
     }
 
     // Update Redis state
@@ -479,5 +539,75 @@ export class ContainerPoolManager {
     if (state.allocated && state.allocatedTo) {
       await this.redisClient.instance.expire(`container:${containerId}`, 1800);
     }
+  }
+
+  /**
+   * Manual cleanup of a specific container
+   */
+  async cleanupContainer(containerId: string): Promise<void> {
+    const container = this.containers.get(containerId);
+    if (!container) {
+      throw new Error(`Container ${containerId} not found`);
+    }
+
+    console.log(`Manual cleanup requested for container ${containerId}`);
+    const cleanupResult = await this.cleanupService.cleanupContainer(containerId, container.name);
+    
+    if (!cleanupResult.success) {
+      console.warn(`Manual cleanup failed for ${containerId}:`, cleanupResult.errors);
+    } else {
+      console.log(`Manual cleanup completed for ${containerId}`);
+    }
+  }
+
+  /**
+   * Manual reset of a specific container
+   */
+  async resetContainer(containerId: string): Promise<void> {
+    const container = this.containers.get(containerId);
+    if (!container) {
+      throw new Error(`Container ${containerId} not found`);
+    }
+
+    console.log(`Manual reset requested for container ${containerId}`);
+    const resetResult = await this.resetManager.resetContainer(container, 'manual');
+    
+    if (!resetResult.success) {
+      console.warn(`Manual reset failed for ${containerId}:`, resetResult.errors);
+    } else {
+      console.log(`Manual reset completed for ${containerId} using ${resetResult.method}`);
+      
+      // Re-register with health monitor after successful reset
+      this.healthMonitor.registerContainer(containerId, container.name, container.port);
+    }
+  }
+
+  /**
+   * Get cleanup service instance
+   */
+  getCleanupService(): CleanupService {
+    return this.cleanupService;
+  }
+
+  /**
+   * Get reset manager instance
+   */
+  getResetManager(): ContainerResetManager {
+    return this.resetManager;
+  }
+
+  /**
+   * Get cleanup and reset statistics
+   */
+  getCleanupResetStats(): {
+    cleanupConfig: any;
+    resetConfig: any;
+    activeResets: string[];
+  } {
+    return {
+      cleanupConfig: this.cleanupService.getConfig(),
+      resetConfig: this.resetManager.getConfig(),
+      activeResets: this.resetManager.getActiveResets(),
+    };
   }
 }
