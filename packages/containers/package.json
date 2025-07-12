@@ -18,6 +18,16 @@
     "!**/*.tsbuildinfo"
   ],
   "dependencies": {
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "eventsource": "^2.0.2",
+    "@cinnamon-qa/queue": "*"
+  },
+  "devDependencies": {
+    "@types/eventsource": "^1.1.15"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
   }
 }

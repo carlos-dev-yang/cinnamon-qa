@@ -187,7 +187,61 @@
           3
         ],
         "status": "in-progress",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Playwright-MCP Docker Container Image",
+            "description": "Build a Docker image with Playwright, Chrome browser, and MCP (Model Context Protocol) components pre-installed and configured for E2E test execution",
+            "dependencies": [],
+            "details": "Create Dockerfile with Node.js base image, install Playwright with Chrome browser dependencies, configure MCP server components, set up proper user permissions for browser execution, configure environment variables for headless Chrome operation, and optimize image size. Include health check endpoint and proper signal handling for graceful shutdown.",
+            "status": "done",
+            "testStrategy": "Test container startup, verify Playwright installation, validate Chrome browser functionality, and confirm MCP server responsiveness"
+          },
+          {
+            "id": 2,
+            "title": "Implement Container Pool Management System",
+            "description": "Develop a container pool manager that maintains a pool of ready-to-use Playwright-MCP containers with exclusive allocation logic",
+            "dependencies": [
+              1
+            ],
+            "details": "Create ContainerPoolManager class with methods for pool initialization, container allocation/release, and pool size management. Implement exclusive locking mechanism to ensure one test per container. Add configuration for minimum/maximum pool sizes, container lifecycle management, and queue handling for allocation requests. Include metrics collection for pool utilization and performance monitoring.",
+            "status": "pending",
+            "testStrategy": "Unit tests for allocation/release logic, concurrent access testing, pool size management validation, and stress testing with multiple simultaneous requests"
+          },
+          {
+            "id": 3,
+            "title": "Setup Container Health Monitoring",
+            "description": "Implement comprehensive health monitoring system to track container status, resource usage, and automatic failure detection",
+            "dependencies": [
+              2
+            ],
+            "details": "Create HealthMonitor service with periodic health checks for container responsiveness, memory/CPU usage monitoring, and browser process validation. Implement health check endpoints in containers, configure monitoring intervals, set up alerting for unhealthy containers, and create dashboard for pool status visualization. Include automatic marking of unhealthy containers for replacement.",
+            "status": "pending",
+            "testStrategy": "Test health check accuracy, validate monitoring metrics, simulate container failures, and verify automatic detection and marking of unhealthy containers"
+          },
+          {
+            "id": 4,
+            "title": "Implement Container Cleanup and Reset Mechanisms",
+            "description": "Develop automatic cleanup and reset functionality to ensure containers return to clean state after test execution",
+            "dependencies": [
+              3
+            ],
+            "details": "Create CleanupService with post-test cleanup procedures including browser session termination, temporary file removal, cache clearing, and memory cleanup. Implement container reset mechanisms to restore containers to initial state, configure automatic cleanup triggers, and add manual cleanup capabilities. Include cleanup validation and rollback procedures for failed cleanup attempts.",
+            "status": "pending",
+            "testStrategy": "Verify cleanup completeness, test reset functionality, validate state restoration, and ensure no data leakage between test sessions"
+          },
+          {
+            "id": 5,
+            "title": "Implement Resource Management and Allocation Logic",
+            "description": "Create comprehensive resource management system with proper allocation/release logic, timeout handling, and resource optimization",
+            "dependencies": [
+              4
+            ],
+            "details": "Develop ResourceManager with container allocation queuing, timeout handling for long-running tests, resource usage optimization, and automatic scaling based on demand. Implement graceful degradation for resource exhaustion, priority-based allocation for different test types, and proper error handling for allocation failures. Add resource usage analytics and optimization recommendations.",
+            "status": "pending",
+            "testStrategy": "Test allocation timeout handling, validate resource optimization, stress test with high concurrent demand, and verify proper cleanup on allocation failures"
+          }
+        ]
       },
       {
         "id": 7,
@@ -273,7 +327,7 @@
     ],
     "metadata": {
       "created": "2025-07-06T09:22:07.785Z",
-      "updated": "2025-07-08T14:04:33.209Z",
+      "updated": "2025-07-12T03:27:25.136Z",
       "description": "Tasks for master context"
     }
   }
