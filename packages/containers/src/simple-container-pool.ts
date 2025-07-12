@@ -73,8 +73,16 @@ export class SimpleContainerPool {
       return null;
     }
 
-    // Health check
-    const isHealthy = await this.healthChecker.isContainerReady(availableContainer.port);
+    // Health check with container name for comprehensive verification
+    const containerObj = this.containers.get(availableContainer.containerId);
+    const containerName = containerObj?.name;
+    
+    console.log(`Checking health for container ${availableContainer.containerId} (${containerName}) on port ${availableContainer.port}`);
+    
+    const isHealthy = await this.healthChecker.isContainerReady(
+      availableContainer.port, 
+      containerName
+    );
     
     if (!isHealthy) {
       console.log(`Container ${availableContainer.id} is unhealthy, attempting restart...`);
@@ -84,29 +92,62 @@ export class SimpleContainerPool {
       if (container) {
         try {
           await container.restart();
-          // After restart, try again once
-          const isHealthyAfterRestart = await this.healthChecker.isContainerReady(availableContainer.port);
+          console.log(`Container ${availableContainer.id} restarted, checking health...`);
+          
+          // Wait a bit for container to fully start
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Check health after restart
+          const isHealthyAfterRestart = await this.healthChecker.isContainerReady(
+            availableContainer.port, 
+            containerName
+          );
+          
           if (isHealthyAfterRestart) {
+            console.log(`Container ${availableContainer.id} is healthy after restart`);
             await this.markAsAllocated(availableContainer.id, testRunId);
             container.allocate(testRunId);
             return container.getInfo();
+          } else {
+            console.log(`Container ${availableContainer.id} still unhealthy after restart`);
           }
         } catch (error) {
           console.error(`Failed to restart container ${availableContainer.id}:`, error);
         }
       }
       
-      // Try to find another available container (without recursive call)
-      const otherContainer = await this.findAvailableContainer();
-      if (otherContainer && otherContainer.id !== availableContainer.id) {
-        const isOtherHealthy = await this.healthChecker.isContainerReady(otherContainer.port);
+      // Try to find another available container (single attempt, no recursion)
+      const availableContainers = [];
+      for (const containerId of this.containers.keys()) {
+        if (containerId !== availableContainer.id) {
+          const state = await this.getContainerState(containerId);
+          if (state && !state.allocated) {
+            availableContainers.push(state);
+          }
+        }
+      }
+      
+      // Try each alternative container once
+      for (const otherContainer of availableContainers) {
+        console.log(`Trying alternative container ${otherContainer.containerId}...`);
+        const altContainer = this.containers.get(otherContainer.containerId);
+        const altContainerName = altContainer?.name;
+        
+        const isOtherHealthy = await this.healthChecker.isContainerReady(
+          otherContainer.port, 
+          altContainerName
+        );
+        
         if (isOtherHealthy) {
-          await this.markAsAllocated(otherContainer.id, testRunId);
-          const containerObj = this.containers.get(otherContainer.id);
+          await this.markAsAllocated(otherContainer.containerId, testRunId);
+          const containerObj = this.containers.get(otherContainer.containerId);
           if (containerObj) {
             containerObj.allocate(testRunId);
+            console.log(`Successfully allocated alternative container ${otherContainer.containerId}`);
             return containerObj.getInfo();
           }
+        } else {
+          console.log(`Alternative container ${otherContainer.containerId} is also unhealthy`);
         }
       }
       
