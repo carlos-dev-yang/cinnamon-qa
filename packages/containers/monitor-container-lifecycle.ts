@@ -1,14 +1,16 @@
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from '@cinnamon-qa/logger';
 
 const execAsync = promisify(exec);
+const logger = createLogger({ context: 'MonitorContainerLifecycle' });
 
 async function monitorContainerLifecycle() {
-  console.log('📊 Monitoring Container Lifecycle...');
+  logger.info('Monitoring Container Lifecycle');
   
   try {
     // Start a new container to monitor
-    console.log('🚀 Starting monitored container...');
+    logger.info('Starting monitored container');
     const { stdout: containerId } = await execAsync([
       'docker run -d',
       '--name monitored-mcp',
@@ -23,18 +25,18 @@ async function monitorContainerLifecycle() {
       '--isolated'
     ].join(' '));
     
-    console.log('Container ID:', containerId.trim());
+    logger.info('Container started', { containerId: containerId.trim() });
     
     // Monitor Docker events for this container
-    console.log('👀 Starting Docker events monitor...');
+    logger.info('Starting Docker events monitor');
     const dockerEvents = spawn('docker', ['events', '--filter', 'container=monitored-mcp', '--format', '{{.Time}} {{.Action}} {{.Actor.Attributes.name}}']);
     
     dockerEvents.stdout.on('data', (data) => {
-      console.log('🔔 Docker Event:', data.toString().trim());
+      logger.info('Docker Event', { event: data.toString().trim() });
     });
     
     dockerEvents.stderr.on('data', (data) => {
-      console.log('❌ Docker Events Error:', data.toString().trim());
+      logger.error('Docker Events Error', { error: data.toString().trim() });
     });
     
     // Periodically check container status
@@ -42,34 +44,34 @@ async function monitorContainerLifecycle() {
       try {
         const { stdout: status } = await execAsync('docker ps --filter name=monitored-mcp --format "{{.Names}} {{.Status}}"');
         if (status.trim()) {
-          console.log('📊 Container Status:', status.trim());
+          logger.info('Container Status', { status: status.trim() });
           
           // Get logs
           try {
             const { stdout: logs } = await execAsync('docker logs --tail 5 monitored-mcp 2>&1');
             if (logs.trim()) {
-              console.log('📋 Recent Logs:', logs.trim());
+              logger.info('Recent Logs', { logs: logs.trim() });
             }
           } catch (logError) {
-            console.log('⚠️ Failed to get logs:', logError.message);
+            logger.warn('Failed to get logs', { error: logError.message });
           }
         } else {
-          console.log('❌ Container is no longer running');
+          logger.info('Container is no longer running');
           
           // Check if it exists in stopped state
           const { stdout: allStatus } = await execAsync('docker ps -a --filter name=monitored-mcp --format "{{.Names}} {{.Status}}"');
-          console.log('📊 All Container Status:', allStatus.trim() || 'Container removed');
+          logger.info('All Container Status', { status: allStatus.trim() || 'Container removed' });
           
           // If container exists but stopped, get exit code and logs
           if (allStatus.includes('monitored-mcp')) {
             try {
               const { stdout: inspectOutput } = await execAsync('docker inspect monitored-mcp --format "{{.State.ExitCode}} {{.State.Error}}"');
-              console.log('🔍 Exit Code and Error:', inspectOutput.trim());
+              logger.info('Exit Code and Error', { info: inspectOutput.trim() });
               
               const { stdout: allLogs } = await execAsync('docker logs monitored-mcp 2>&1');
-              console.log('📋 Full Logs:', allLogs.trim() || 'No logs');
+              logger.info('Full Logs', { logs: allLogs.trim() || 'No logs' });
             } catch (inspectError) {
-              console.log('⚠️ Failed to inspect:', inspectError.message);
+              logger.warn('Failed to inspect', { error: inspectError.message });
             }
           }
           
@@ -79,41 +81,41 @@ async function monitorContainerLifecycle() {
           // Cleanup
           try {
             await execAsync('docker rm -f monitored-mcp');
-            console.log('🧹 Container cleaned up');
+            logger.info('Container cleaned up');
           } catch (cleanupError) {
-            console.log('⚠️ Cleanup failed:', cleanupError.message);
+            logger.warn('Cleanup failed', { error: cleanupError.message });
           }
           
           process.exit(0);
         }
       } catch (error) {
-        console.log('❌ Status check error:', error.message);
+        logger.error('Status check error', { error: error.message });
       }
     }, 5000); // Check every 5 seconds
     
     // Stop monitoring after 2 minutes
     setTimeout(() => {
-      console.log('⏰ Monitoring timeout - stopping');
+      logger.info('Monitoring timeout - stopping');
       clearInterval(statusInterval);
       dockerEvents.kill();
       
       // Final cleanup
       execAsync('docker rm -f monitored-mcp').catch(() => {
-        console.log('⚠️ Cleanup failed');
+        logger.warn('Cleanup failed');
       });
       process.exit(0);
     }, 120000); // 2 minutes
     
-    console.log('🕐 Monitoring for 2 minutes... Press Ctrl+C to stop early');
+    logger.info('Monitoring for 2 minutes... Press Ctrl+C to stop early');
     
   } catch (error) {
-    console.error('❌ Monitoring setup failed:', error);
+    logger.error('Monitoring setup failed', { error });
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Stopping monitor...');
+  logger.info('Stopping monitor');
   try {
     await execAsync('docker rm -f monitored-mcp');
     console.log('🧹 Container cleaned up');
@@ -124,4 +126,4 @@ process.on('SIGINT', async () => {
 });
 
 // Run monitor
-monitorContainerLifecycle().catch(console.error);
+monitorContainerLifecycle().catch(error => logger.error('Monitor container lifecycle failed', { error }));

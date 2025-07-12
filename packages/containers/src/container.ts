@@ -1,10 +1,12 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from '@cinnamon-qa/logger';
 import { Container, ContainerStatus } from './types';
 
 const execAsync = promisify(exec);
 
 export class PlaywrightMcpContainer {
+  private readonly logger = createLogger({ context: 'PlaywrightMcpContainer' });
   private container: Container;
   
   constructor(
@@ -78,7 +80,7 @@ export class PlaywrightMcpContainer {
       await this.waitForReady();
       this.container.status = ContainerStatus.AVAILABLE;
     } catch (error) {
-      console.error(`Failed to start container ${this.container.name}:`, error);
+      this.logger.error('Failed to start container', { containerName: this.container.name, error });
       this.container.status = ContainerStatus.UNHEALTHY;
       throw error;
     }
@@ -92,7 +94,7 @@ export class PlaywrightMcpContainer {
       await execAsync(`docker stop ${this.container.name}`);
       this.container.status = ContainerStatus.AVAILABLE;
     } catch (error) {
-      console.error(`Failed to stop container ${this.container.name}:`, error);
+      this.logger.error('Failed to stop container', { containerName: this.container.name, error });
       throw error;
     }
   }
@@ -107,7 +109,7 @@ export class PlaywrightMcpContainer {
       await this.waitForReady();
       this.container.status = ContainerStatus.AVAILABLE;
     } catch (error) {
-      console.error(`Failed to restart container ${this.container.name}:`, error);
+      this.logger.error('Failed to restart container', { containerName: this.container.name, error });
       this.container.status = ContainerStatus.UNHEALTHY;
       throw error;
     }
@@ -120,7 +122,7 @@ export class PlaywrightMcpContainer {
     try {
       await execAsync(`docker rm -f ${this.container.name}`);
     } catch (error) {
-      console.error(`Failed to remove container ${this.container.name}:`, error);
+      this.logger.error('Failed to remove container', { containerName: this.container.name, error });
       throw error;
     }
   }

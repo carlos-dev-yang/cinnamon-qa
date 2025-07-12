@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 import { SimpleHealthChecker } from './health-checker';
 import { ContainerState } from './types';
 
@@ -47,6 +48,7 @@ export interface MonitoringConfig {
 }
 
 export class HealthMonitor extends EventEmitter {
+  private readonly logger = createLogger({ context: 'HealthMonitor' });
   private healthChecker: SimpleHealthChecker;
   private redisClient: RedisClient;
   private containers: Map<string, ContainerHealthStatus> = new Map();
@@ -98,7 +100,7 @@ export class HealthMonitor extends EventEmitter {
     };
 
     this.containers.set(containerId, healthStatus);
-    console.log(`Registered container ${containerId} for health monitoring`);
+    this.logger.info('Registered container for health monitoring', { containerId });
     
     this.emit('containerRegistered', { containerId, containerName });
   }
@@ -110,7 +112,7 @@ export class HealthMonitor extends EventEmitter {
     const container = this.containers.get(containerId);
     if (container) {
       this.containers.delete(containerId);
-      console.log(`Unregistered container ${containerId} from health monitoring`);
+      this.logger.info('Unregistered container from health monitoring', { containerId });
       this.emit('containerUnregistered', { containerId });
     }
   }
@@ -120,11 +122,11 @@ export class HealthMonitor extends EventEmitter {
    */
   startMonitoring(): void {
     if (this.isMonitoring) {
-      console.log('Health monitoring is already running');
+      this.logger.info('Health monitoring is already running');
       return;
     }
 
-    console.log(`Starting health monitoring with ${this.config.checkIntervalMs}ms interval`);
+    this.logger.info('Starting health monitoring', { intervalMs: this.config.checkIntervalMs });
     this.isMonitoring = true;
 
     // Health check interval
@@ -148,7 +150,7 @@ export class HealthMonitor extends EventEmitter {
       return;
     }
 
-    console.log('Stopping health monitoring');
+    this.logger.info('Stopping health monitoring');
     this.isMonitoring = false;
 
     if (this.monitoringInterval) {
@@ -168,7 +170,7 @@ export class HealthMonitor extends EventEmitter {
    * Perform health checks on all registered containers
    */
   private async performHealthChecks(): Promise<void> {
-    console.log(`Performing health checks on ${this.containers.size} containers`);
+    this.logger.info('Performing health checks', { containerCount: this.containers.size });
 
     const checkPromises = Array.from(this.containers.entries()).map(([containerId, status]) =>
       this.checkContainerHealth(containerId, status)
@@ -244,7 +246,7 @@ export class HealthMonitor extends EventEmitter {
 
     // Emit events for status changes
     if (previousStatus !== container.status) {
-      console.log(`Container ${containerId} status changed: ${previousStatus} → ${container.status}`);
+      this.logger.info('Container status changed', { containerId, previousStatus, newStatus: container.status });
       this.emit('statusChanged', {
         containerId,
         previousStatus,
@@ -320,7 +322,7 @@ export class HealthMonitor extends EventEmitter {
           }
         }
       } catch (error) {
-        console.error(`Failed to get stats for container ${containerName}:`, error);
+        this.logger.error('Failed to get stats for container', { containerName, error });
       }
     }
   }

@@ -1,3 +1,4 @@
+import { createLogger } from '@cinnamon-qa/logger';
 import { ContainerPoolManager } from './container-pool-manager';
 import { HealthMonitor, ContainerHealthStatus } from './health-monitor';
 
@@ -45,6 +46,7 @@ export interface DashboardData {
 }
 
 export class HealthDashboard {
+  private readonly logger = createLogger({ context: 'HealthDashboard' });
   private poolManager: ContainerPoolManager;
   private healthMonitor: HealthMonitor;
 
@@ -106,52 +108,52 @@ export class HealthDashboard {
   async printDashboard(): Promise<void> {
     const data = await this.getDashboardData();
     
-    console.log('\n' + '='.repeat(80));
-    console.log('🏥 CONTAINER HEALTH DASHBOARD');
-    console.log('='.repeat(80));
-    console.log(`📅 Generated: ${data.timestamp.toISOString()}`);
+    this.logger.info('\n' + '='.repeat(80));
+    this.logger.info('CONTAINER HEALTH DASHBOARD');
+    this.logger.info('='.repeat(80));
+    this.logger.info(`Generated: ${data.timestamp.toISOString()}`);
     
     // Pool Metrics
-    console.log('\n📊 POOL METRICS:');
-    console.log(`   Total Containers: ${data.poolMetrics.totalContainers}`);
-    console.log(`   Available: ${data.poolMetrics.availableContainers} | Allocated: ${data.poolMetrics.allocatedContainers}`);
-    console.log(`   Queue Size: ${data.poolMetrics.queueSize}`);
-    console.log(`   Total Allocations: ${data.poolMetrics.totalAllocations} | Failed: ${data.poolMetrics.failedAllocations}`);
-    console.log(`   Avg Allocation Time: ${data.poolMetrics.averageAllocationTime.toFixed(2)}ms`);
+    this.logger.info('\nPOOL METRICS:');
+    this.logger.info(`   Total Containers: ${data.poolMetrics.totalContainers}`);
+    this.logger.info(`   Available: ${data.poolMetrics.availableContainers} | Allocated: ${data.poolMetrics.allocatedContainers}`);
+    this.logger.info(`   Queue Size: ${data.poolMetrics.queueSize}`);
+    this.logger.info(`   Total Allocations: ${data.poolMetrics.totalAllocations} | Failed: ${data.poolMetrics.failedAllocations}`);
+    this.logger.info(`   Avg Allocation Time: ${data.poolMetrics.averageAllocationTime.toFixed(2)}ms`);
 
     // Health Metrics
-    console.log('\n🏥 HEALTH METRICS:');
-    console.log(`   Monitoring: ${data.healthMetrics.isMonitoring ? '✅ Active' : '❌ Stopped'}`);
-    console.log(`   Last Check: ${data.healthMetrics.lastCheckTime?.toISOString() || 'Never'}`);
-    console.log(`   Status Distribution:`);
-    console.log(`     Healthy: ${data.healthMetrics.healthyContainers}`);
-    console.log(`     Degraded: ${data.healthMetrics.degradedContainers}`);
-    console.log(`     Unhealthy: ${data.healthMetrics.unhealthyContainers}`);
-    console.log(`     Critical: ${data.healthMetrics.criticalContainers}`);
-    console.log(`   Avg Response Time: ${data.healthMetrics.averageResponseTime.toFixed(2)}ms`);
+    this.logger.info('\nHEALTH METRICS:');
+    this.logger.info(`   Monitoring: ${data.healthMetrics.isMonitoring ? 'Active' : 'Stopped'}`);
+    this.logger.info(`   Last Check: ${data.healthMetrics.lastCheckTime?.toISOString() || 'Never'}`);
+    this.logger.info(`   Status Distribution:`);
+    this.logger.info(`     Healthy: ${data.healthMetrics.healthyContainers}`);
+    this.logger.info(`     Degraded: ${data.healthMetrics.degradedContainers}`);
+    this.logger.info(`     Unhealthy: ${data.healthMetrics.unhealthyContainers}`);
+    this.logger.info(`     Critical: ${data.healthMetrics.criticalContainers}`);
+    this.logger.info(`   Avg Response Time: ${data.healthMetrics.averageResponseTime.toFixed(2)}ms`);
 
     // Container Details
-    console.log('\n🐳 CONTAINER DETAILS:');
+    this.logger.info('\nCONTAINER DETAILS:');
     for (const container of data.containerDetails) {
       const statusIcon = this.getStatusIcon(container.status);
       const allocationStatus = container.allocated ? `🔒 ${container.allocatedTo}` : '🆓 Available';
       
-      console.log(`\n   ${statusIcon} ${container.containerName} (${container.containerId})`);
-      console.log(`     Port: ${container.port} | Status: ${container.status} | ${allocationStatus}`);
-      console.log(`     Health: ${container.isHealthy ? '✅' : '❌'} | Failures: ${container.consecutiveFailures}`);
-      console.log(`     Last Check: ${container.lastChecked.toISOString()}`);
-      console.log(`     Resources: ${container.resourceUsage.memoryUsageMB.toFixed(1)}MB (${container.resourceUsage.memoryPercentage.toFixed(1)}%) | CPU: ${container.resourceUsage.cpuPercentage.toFixed(1)}%`);
-      console.log(`     Network: RX ${container.resourceUsage.networkRxMB.toFixed(2)}MB | TX ${container.resourceUsage.networkTxMB.toFixed(2)}MB`);
+      this.logger.info(`\n   ${statusIcon} ${container.containerName} (${container.containerId})`);
+      this.logger.info(`     Port: ${container.port} | Status: ${container.status} | ${allocationStatus}`);
+      this.logger.info(`     Health: ${container.isHealthy ? 'Yes' : 'No'} | Failures: ${container.consecutiveFailures}`);
+      this.logger.info(`     Last Check: ${container.lastChecked.toISOString()}`);
+      this.logger.info(`     Resources: ${container.resourceUsage.memoryUsageMB.toFixed(1)}MB (${container.resourceUsage.memoryPercentage.toFixed(1)}%) | CPU: ${container.resourceUsage.cpuPercentage.toFixed(1)}%`);
+      this.logger.info(`     Network: RX ${container.resourceUsage.networkRxMB.toFixed(2)}MB | TX ${container.resourceUsage.networkTxMB.toFixed(2)}MB`);
       
       if (container.recentErrors.length > 0) {
-        console.log(`     Recent Errors:`);
+        this.logger.info(`     Recent Errors:`);
         container.recentErrors.slice(0, 3).forEach(error => {
-          console.log(`       - ${error}`);
+          this.logger.info(`       - ${error}`);
         });
       }
     }
 
-    console.log('\n' + '='.repeat(80));
+    this.logger.info('\n' + '='.repeat(80));
   }
 
   /**
@@ -216,24 +218,24 @@ export class HealthDashboard {
    * Start periodic dashboard printing
    */
   startPeriodicDashboard(intervalMs: number = 60000): NodeJS.Timeout {
-    console.log(`🔄 Starting periodic dashboard updates every ${intervalMs / 1000}s`);
+    this.logger.info('Starting periodic dashboard updates', { intervalSeconds: intervalMs / 1000 });
     
     return setInterval(async () => {
       try {
         await this.printDashboard();
       } catch (error) {
-        console.error('Failed to generate dashboard:', error);
+        this.logger.error('Failed to generate dashboard', { error });
       }
     }, intervalMs);
   }
 
   private getStatusIcon(status: string): string {
     switch (status) {
-      case 'healthy': return '✅';
-      case 'degraded': return '⚠️';
-      case 'unhealthy': return '🔴';
-      case 'critical': return '💀';
-      default: return '❓';
+      case 'healthy': return '[OK]';
+      case 'degraded': return '[WARN]';
+      case 'unhealthy': return '[FAIL]';
+      case 'critical': return '[CRIT]';
+      default: return '[?]';
     }
   }
 }

@@ -1,8 +1,11 @@
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 import { SimpleContainerPool } from './src';
 
+const logger = createLogger({ context: 'SimpleTest' });
+
 async function simpleTest() {
-  console.log('🚀 Simple Container Test...');
+  logger.info('Simple Container Test');
   
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -12,44 +15,43 @@ async function simpleTest() {
   });
   
   try {
-    console.log('📡 Connecting to Redis...');
+    logger.info('Connecting to Redis');
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected');
 
     // Initialize container pool
-    console.log('🐳 Initializing Container Pool...');
+    logger.info('Initializing Container Pool');
     const containerPool = new SimpleContainerPool(redisClient);
     
     // Initialize pool with 2 containers
     await containerPool.initialize();
-    console.log('✅ Container pool initialized');
+    logger.info('Container pool initialized');
 
     // Check if containers are running
-    console.log('🔍 Checking Docker containers...');
+    logger.info('Checking Docker containers');
     const { exec } = require('child_process');
     const { promisify } = require('util');
     const execAsync = promisify(exec);
     
     const { stdout } = await execAsync('docker ps --filter name=cinnamon-qa-mcp --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"');
-    console.log('Running containers:');
-    console.log(stdout);
+    logger.info('Running containers', { containers: stdout });
 
     // Check pool status
-    console.log('📊 Checking pool status...');
+    logger.info('Checking pool status');
     const status = await containerPool.getPoolStatus();
-    console.log('Pool status:', JSON.stringify(status, null, 2));
+    logger.info('Pool status', { status });
 
-    console.log('🧹 Shutting down...');
+    logger.info('Shutting down');
     await containerPool.shutdown();
-    console.log('✅ Container pool shutdown complete');
+    logger.info('Container pool shutdown complete');
     
   } catch (error) {
-    console.error('❌ Error in container pool test:', error);
+    logger.error('Error in container pool test', { error });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected');
   }
 }
 
 // Run test
-simpleTest().catch(console.error);
+simpleTest().catch(error => logger.error('Simple test failed', { error }));

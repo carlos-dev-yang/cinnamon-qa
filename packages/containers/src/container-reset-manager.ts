@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { createLogger } from '@cinnamon-qa/logger';
 import { CleanupService, CleanupResult } from './cleanup-service';
 import { PlaywrightMcpContainer } from './container';
 import { SimpleHealthChecker } from './health-checker';
@@ -29,6 +30,7 @@ export interface ResetStrategy {
 }
 
 export class ContainerResetManager extends EventEmitter {
+  private readonly logger = createLogger({ context: 'ContainerResetManager' });
   private cleanupService: CleanupService;
   private healthChecker: SimpleHealthChecker;
   private config: ResetConfig;
@@ -65,7 +67,7 @@ export class ContainerResetManager extends EventEmitter {
     
     // Check if reset is already in progress for this container
     if (this.activeResets.has(container.id)) {
-      console.log(`Reset already in progress for container ${container.id}, waiting...`);
+      this.logger.info('Reset already in progress for container, waiting', { containerId: container.id });
       return await this.activeResets.get(container.id)!;
     }
 
@@ -85,7 +87,7 @@ export class ContainerResetManager extends EventEmitter {
    */
   private async executeReset(container: PlaywrightMcpContainer, reason?: string): Promise<ResetResult> {
     const startTime = Date.now();
-    console.log(`🔄 Starting container reset for ${container.name} (${reason || 'manual'})`);
+    this.logger.info('Starting container reset', { containerName: container.name, reason: reason || 'manual' });
     
     this.emit('resetStarted', { 
       containerId: container.id, 
@@ -98,7 +100,7 @@ export class ContainerResetManager extends EventEmitter {
     // Try each reset strategy in order of priority
     for (const strategy of this.resetStrategies) {
       try {
-        console.log(`  Trying reset strategy: ${strategy.name}`);
+        this.logger.info('Trying reset strategy', { strategy: strategy.name });
         
         const result = await Promise.race([
           strategy.execute(container),
@@ -107,7 +109,7 @@ export class ContainerResetManager extends EventEmitter {
 
         if (result.success) {
           result.durationMs = Date.now() - startTime;
-          console.log(`✅ Container reset successful using ${strategy.name} (${result.durationMs}ms)`);
+          this.logger.info('Container reset successful', { strategy: strategy.name, durationMs: result.durationMs });
           
           this.emit('resetCompleted', { 
             containerId: container.id, 
@@ -118,13 +120,13 @@ export class ContainerResetManager extends EventEmitter {
           
           return result;
         } else {
-          console.warn(`⚠️ Reset strategy ${strategy.name} failed: ${result.errors.join(', ')}`);
+          this.logger.warn('Reset strategy failed', { strategy: strategy.name, errors: result.errors });
           lastError = new Error(`Strategy ${strategy.name} failed: ${result.errors.join(', ')}`);
         }
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`❌ Reset strategy ${strategy.name} threw error: ${errorMessage}`);
+        this.logger.warn('Reset strategy threw error', { strategy: strategy.name, error: errorMessage });
         lastError = error instanceof Error ? error : new Error(errorMessage);
       }
     }
@@ -138,7 +140,7 @@ export class ContainerResetManager extends EventEmitter {
       errors: lastError ? [lastError.message] : ['All reset strategies failed'],
     };
 
-    console.error(`❌ Container reset failed for ${container.name} after trying all strategies`);
+    this.logger.error('Container reset failed after trying all strategies', { containerName: container.name });
     this.emit('resetFailed', { 
       containerId: container.id, 
       containerName: container.name, 
@@ -301,7 +303,7 @@ export class ContainerResetManager extends EventEmitter {
       return null;
     }
 
-    console.log(`🔄 Auto-reset on allocation for ${container.name}`);
+    this.logger.info('Auto-reset on allocation', { containerName: container.name });
     return await this.resetContainer(container, 'allocation');
   }
 
@@ -313,7 +315,7 @@ export class ContainerResetManager extends EventEmitter {
       return null;
     }
 
-    console.log(`🔄 Auto-reset on release for ${container.name}`);
+    this.logger.info('Auto-reset on release', { containerName: container.name });
     return await this.resetContainer(container, 'release');
   }
 
@@ -325,7 +327,7 @@ export class ContainerResetManager extends EventEmitter {
       return null;
     }
 
-    console.log(`🔄 Auto-reset on health failure for ${container.name}`);
+    this.logger.info('Auto-reset on health failure', { containerName: container.name });
     return await this.resetContainer(container, 'health_failure');
   }
 

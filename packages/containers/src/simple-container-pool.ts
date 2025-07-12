@@ -1,10 +1,12 @@
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 import { PlaywrightMcpContainer } from './container';
 import { SimpleHealthChecker } from './health-checker';
 import { DockerInspector } from './docker-inspector';
 import { Container, ContainerState, ContainerPoolConfig } from './types';
 
 export class SimpleContainerPool {
+  private readonly logger = createLogger({ context: 'SimpleContainerPool' });
   private containers: Map<string, PlaywrightMcpContainer> = new Map();
   private healthChecker: SimpleHealthChecker;
   private dockerInspector: DockerInspector;
@@ -28,7 +30,7 @@ export class SimpleContainerPool {
    * Initialize the container pool
    */
   async initialize(): Promise<void> {
-    console.log('Initializing container pool...');
+    this.logger.info('Initializing container pool');
     
     // Initialize Docker environment
     await this.dockerInspector.initialize();
@@ -53,13 +55,13 @@ export class SimpleContainerPool {
           lastCheckedAt: new Date(),
         });
         
-        console.log(`Container ${config.id} started successfully on port ${config.port}`);
+        this.logger.info('Container started successfully', { containerId: config.id, port: config.port });
       } catch (error) {
-        console.error(`Failed to start container ${config.id}:`, error);
+        this.logger.error('Failed to start container', { containerId: config.id, error });
       }
     }
 
-    console.log('Container pool initialized');
+    this.logger.info('Container pool initialized');
   }
 
   /**
@@ -69,7 +71,7 @@ export class SimpleContainerPool {
     // Find available container
     const availableContainer = await this.findAvailableContainer();
     if (!availableContainer) {
-      console.log('No available containers in pool');
+      this.logger.info('No available containers in pool');
       return null;
     }
 
@@ -77,7 +79,7 @@ export class SimpleContainerPool {
     const containerObj = this.containers.get(availableContainer.containerId);
     const containerName = containerObj?.name;
     
-    console.log(`Checking health for container ${availableContainer.containerId} (${containerName}) on port ${availableContainer.port}`);
+    this.logger.info('Checking health for container', { containerId: availableContainer.containerId, containerName, port: availableContainer.port });
     
     const isHealthy = await this.healthChecker.isContainerReady(
       availableContainer.port, 
@@ -85,14 +87,14 @@ export class SimpleContainerPool {
     );
     
     if (!isHealthy) {
-      console.log(`Container ${availableContainer.id} is unhealthy, attempting restart...`);
+      this.logger.info('Container is unhealthy, attempting restart', { containerId: availableContainer.id });
       
       // Restart unhealthy container
       const container = this.containers.get(availableContainer.id);
       if (container) {
         try {
           await container.restart();
-          console.log(`Container ${availableContainer.id} restarted, checking health...`);
+          this.logger.info('Container restarted, checking health', { containerId: availableContainer.id });
           
           // Wait a bit for container to fully start
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -104,15 +106,15 @@ export class SimpleContainerPool {
           );
           
           if (isHealthyAfterRestart) {
-            console.log(`Container ${availableContainer.id} is healthy after restart`);
+            this.logger.info('Container is healthy after restart', { containerId: availableContainer.id });
             await this.markAsAllocated(availableContainer.id, testRunId);
             container.allocate(testRunId);
             return container.getInfo();
           } else {
-            console.log(`Container ${availableContainer.id} still unhealthy after restart`);
+            this.logger.info('Container still unhealthy after restart', { containerId: availableContainer.id });
           }
         } catch (error) {
-          console.error(`Failed to restart container ${availableContainer.id}:`, error);
+          this.logger.error('Failed to restart container', { containerId: availableContainer.id, error });
         }
       }
       
@@ -129,7 +131,7 @@ export class SimpleContainerPool {
       
       // Try each alternative container once
       for (const otherContainer of availableContainers) {
-        console.log(`Trying alternative container ${otherContainer.containerId}...`);
+        this.logger.info('Trying alternative container', { containerId: otherContainer.containerId });
         const altContainer = this.containers.get(otherContainer.containerId);
         const altContainerName = altContainer?.name;
         
@@ -143,16 +145,16 @@ export class SimpleContainerPool {
           const containerObj = this.containers.get(otherContainer.containerId);
           if (containerObj) {
             containerObj.allocate(testRunId);
-            console.log(`Successfully allocated alternative container ${otherContainer.containerId}`);
+            this.logger.info('Successfully allocated alternative container', { containerId: otherContainer.containerId });
             return containerObj.getInfo();
           }
         } else {
-          console.log(`Alternative container ${otherContainer.containerId} is also unhealthy`);
+          this.logger.info('Alternative container is also unhealthy', { containerId: otherContainer.containerId });
         }
       }
       
       // No healthy containers available
-      console.log('No healthy containers available in pool');
+      this.logger.info('No healthy containers available in pool');
       return null;
     }
 
@@ -174,7 +176,7 @@ export class SimpleContainerPool {
   async releaseContainer(containerId: string): Promise<void> {
     const container = this.containers.get(containerId);
     if (!container) {
-      console.error(`Container ${containerId} not found`);
+      this.logger.error('Container not found', { containerId });
       return;
     }
 
@@ -187,21 +189,21 @@ export class SimpleContainerPool {
     });
 
     container.release();
-    console.log(`Container ${containerId} released`);
+    this.logger.info('Container released', { containerId });
   }
 
   /**
    * Shutdown all containers
    */
   async shutdown(): Promise<void> {
-    console.log('Shutting down container pool...');
+    this.logger.info('Shutting down container pool');
     
     for (const container of this.containers.values()) {
       try {
         await container.stop();
         await container.remove();
       } catch (error) {
-        console.error(`Failed to shutdown container ${container.id}:`, error);
+        this.logger.error('Failed to shutdown container', { containerId: container.id, error });
       }
     }
     
@@ -211,7 +213,7 @@ export class SimpleContainerPool {
     }
     
     this.containers.clear();
-    console.log('Container pool shutdown complete');
+    this.logger.info('Container pool shutdown complete');
   }
 
   /**

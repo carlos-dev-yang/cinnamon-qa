@@ -1,9 +1,11 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from '@cinnamon-qa/logger';
 
 const execAsync = promisify(exec);
 
 export class DockerInspector {
+  private readonly logger = createLogger({ context: 'DockerInspector' });
   private readonly playwrightMcpImage = 'mcr.microsoft.com/playwright/mcp:latest';
 
   /**
@@ -12,10 +14,10 @@ export class DockerInspector {
   async checkDockerInstallation(): Promise<boolean> {
     try {
       const { stdout } = await execAsync('docker --version');
-      console.log('Docker version:', stdout.trim());
+      this.logger.info('Docker version detected', { version: stdout.trim() });
       return true;
     } catch (error) {
-      console.error('Docker not installed or not accessible:', error);
+      this.logger.error('Docker not installed or not accessible', { error });
       return false;
     }
   }
@@ -28,7 +30,7 @@ export class DockerInspector {
       await execAsync('docker info');
       return true;
     } catch (error) {
-      console.error('Docker daemon is not running:', error);
+      this.logger.error('Docker daemon is not running', { error });
       return false;
     }
   }
@@ -42,17 +44,17 @@ export class DockerInspector {
       const { stdout } = await execAsync(`docker images -q ${this.playwrightMcpImage}`);
       
       if (stdout.trim()) {
-        console.log('Playwright-MCP image already exists');
+        this.logger.info('Playwright-MCP image already exists');
         return true;
       }
 
       // Pull image if not exists
-      console.log('Pulling Playwright-MCP image...');
+      this.logger.info('Pulling Playwright-MCP image', { image: this.playwrightMcpImage });
       await execAsync(`docker pull ${this.playwrightMcpImage}`);
-      console.log('Playwright-MCP image pulled successfully');
+      this.logger.info('Playwright-MCP image pulled successfully');
       return true;
     } catch (error) {
-      console.error('Failed to ensure Playwright-MCP image:', error);
+      this.logger.error('Failed to ensure Playwright-MCP image', { error });
       return false;
     }
   }
@@ -68,21 +70,21 @@ export class DockerInspector {
       const { stdout } = await execAsync(`docker network ls --filter name=${networkName} --format "{{.Name}}"`);
       
       if (stdout.trim() === networkName) {
-        console.log(`Docker network '${networkName}' already exists`);
+        this.logger.info('Docker network already exists', { networkName });
         return networkName;
       }
 
       // Create network if not exists
       await execAsync(`docker network create ${networkName}`);
-      console.log(`Docker network '${networkName}' created`);
+      this.logger.info('Docker network created', { networkName });
       return networkName;
     } catch (error) {
       // Check if error is about network already existing
       if (error instanceof Error && error.message.includes('already exists')) {
-        console.log(`Docker network '${networkName}' already exists`);
+        this.logger.info('Docker network already exists', { networkName });
         return networkName;
       }
-      console.error('Failed to setup Docker network:', error);
+      this.logger.error('Failed to setup Docker network', { error });
       throw error;
     }
   }
@@ -91,7 +93,7 @@ export class DockerInspector {
    * Initialize Docker environment for containers
    */
   async initialize(): Promise<void> {
-    console.log('Initializing Docker environment...');
+    this.logger.info('Initializing Docker environment');
     
     // Check Docker installation
     const isDockerInstalled = await this.checkDockerInstallation();
@@ -114,6 +116,6 @@ export class DockerInspector {
     // Setup network
     await this.setupDockerNetwork();
 
-    console.log('Docker environment initialized successfully');
+    this.logger.info('Docker environment initialized successfully');
   }
 }

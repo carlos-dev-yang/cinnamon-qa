@@ -1,5 +1,8 @@
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 import { SimpleContainerPool } from '../src';
+
+const logger = createLogger({ context: 'BasicUsageExample' });
 
 async function basicUsageExample() {
   // Initialize Redis client
@@ -16,37 +19,36 @@ async function basicUsageExample() {
   try {
     // Initialize pool with 2 containers
     await containerPool.initialize();
-    console.log('Container pool initialized successfully');
+    logger.info('Container pool initialized successfully');
 
     // Check pool status
     const status = await containerPool.getPoolStatus();
-    console.log('Pool status:', status);
+    logger.info('Pool status', { status });
 
     // Allocate a container for test
     const testRunId = 'test-run-' + Date.now();
     const container = await containerPool.allocateContainer(testRunId);
     
     if (container) {
-      console.log(`Allocated container: ${container.id} on port ${container.port}`);
-      console.log(`SSE URL: ${container.sseUrl}`);
+      logger.info('Allocated container', { containerId: container.id, port: container.port, sseUrl: container.sseUrl });
 
       // Simulate test execution
-      console.log('Simulating test execution...');
+      logger.info('Simulating test execution');
       await new Promise(resolve => setTimeout(resolve, 5000));
 
       // Release container
       await containerPool.releaseContainer(container.id);
-      console.log('Container released');
+      logger.info('Container released');
     } else {
-      console.log('No containers available');
+      logger.info('No containers available');
     }
 
     // Check final pool status
     const finalStatus = await containerPool.getPoolStatus();
-    console.log('Final pool status:', finalStatus);
+    logger.info('Final pool status', { finalStatus });
     
   } catch (error) {
-    console.error('Error in container pool usage:', error);
+    logger.error('Error in container pool usage', { error });
   } finally {
     // Cleanup
     await containerPool.shutdown();
@@ -56,7 +58,7 @@ async function basicUsageExample() {
 
 // Run example if this file is executed directly
 if (require.main === module) {
-  basicUsageExample().catch(console.error);
+  basicUsageExample().catch(error => logger.error('Basic usage example failed', { error }));
 }
 
 export { basicUsageExample };

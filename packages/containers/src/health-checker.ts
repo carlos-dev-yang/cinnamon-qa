@@ -1,10 +1,12 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from '@cinnamon-qa/logger';
 import { HealthCheckResult } from './types';
 
 const execAsync = promisify(exec);
 
 export class SimpleHealthChecker {
+  private readonly logger = createLogger({ context: 'SimpleHealthChecker' });
   /**
    * Check if container is ready using multiple verification methods
    */
@@ -32,7 +34,7 @@ export class SimpleHealthChecker {
 
       return true;
     } catch (error) {
-      console.error(`Health check failed for port ${port}:`, error);
+      this.logger.error('Health check failed', { port, error });
       return false;
     }
   }

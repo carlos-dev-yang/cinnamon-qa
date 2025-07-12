@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
+import { createLogger } from '@cinnamon-qa/logger';
 
 const execAsync = promisify(exec);
 
@@ -30,6 +31,7 @@ export interface CleanupValidation {
 }
 
 export class CleanupService extends EventEmitter {
+  private readonly logger = createLogger({ context: 'CleanupService' });
   private config: CleanupConfig;
   private isCleanupInProgress = false;
 
@@ -64,7 +66,7 @@ export class CleanupService extends EventEmitter {
     };
 
     try {
-      console.log(`🧹 Starting cleanup for container ${containerName} (${containerId})`);
+      this.logger.info('Starting cleanup for container', { containerName, containerId });
       this.emit('cleanupStarted', { containerId, containerName });
 
       // Step 1: Terminate browser sessions
@@ -115,10 +117,10 @@ export class CleanupService extends EventEmitter {
       result.durationMs = Date.now() - startTime;
 
       if (result.success) {
-        console.log(`✅ Cleanup completed successfully for ${containerName} in ${result.durationMs}ms`);
+        this.logger.info('Cleanup completed successfully', { containerName, durationMs: result.durationMs });
         this.emit('cleanupCompleted', { containerId, containerName, result });
       } else {
-        console.warn(`⚠️ Cleanup completed with ${result.failedSteps.length} failed steps for ${containerName}`);
+        this.logger.warn('Cleanup completed with failed steps', { containerName, failedSteps: result.failedSteps.length });
         this.emit('cleanupFailed', { containerId, containerName, result });
 
         // Perform rollback if enabled and there were failures
@@ -134,7 +136,7 @@ export class CleanupService extends EventEmitter {
       result.errors.push(errorMessage);
       result.durationMs = Date.now() - startTime;
       
-      console.error(`❌ Cleanup failed for ${containerName}:`, errorMessage);
+      this.logger.error('Cleanup failed', { containerName, error: errorMessage });
       this.emit('cleanupError', { containerId, containerName, error: errorMessage });
       
       return result;
@@ -147,7 +149,7 @@ export class CleanupService extends EventEmitter {
    * Reset container to initial state
    */
   async resetContainer(containerId: string, containerName: string): Promise<CleanupResult> {
-    console.log(`🔄 Resetting container ${containerName} to initial state`);
+    this.logger.info('Resetting container to initial state', { containerName });
     
     const result: CleanupResult = {
       success: false,
@@ -189,10 +191,10 @@ export class CleanupService extends EventEmitter {
       result.durationMs = Date.now() - startTime;
 
       if (result.success) {
-        console.log(`✅ Container reset completed for ${containerName}`);
+        this.logger.info('Container reset completed', { containerName });
         this.emit('resetCompleted', { containerId, containerName, result });
       } else {
-        console.warn(`⚠️ Container reset completed with issues for ${containerName}`);
+        this.logger.warn('Container reset completed with issues', { containerName });
         this.emit('resetFailed', { containerId, containerName, result });
       }
 
@@ -203,7 +205,7 @@ export class CleanupService extends EventEmitter {
       result.errors.push(errorMessage);
       result.durationMs = Date.now() - startTime;
       
-      console.error(`❌ Container reset failed for ${containerName}:`, errorMessage);
+      this.logger.error('Container reset failed', { containerName, error: errorMessage });
       this.emit('resetError', { containerId, containerName, error: errorMessage });
       
       return result;
@@ -219,15 +221,15 @@ export class CleanupService extends EventEmitter {
     result: CleanupResult
   ): Promise<void> {
     try {
-      console.log(`  🔧 ${stepName}...`);
+      this.logger.info('Executing cleanup step', { stepName });
       await stepFunction();
       result.completedSteps.push(stepName);
-      console.log(`  ✅ ${stepName} completed`);
+      this.logger.info('Cleanup step completed', { stepName });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `Unknown error in ${stepName}`;
       result.failedSteps.push(stepName);
       result.errors.push(`${stepName}: ${errorMessage}`);
-      console.warn(`  ⚠️ ${stepName} failed: ${errorMessage}`);
+      this.logger.warn('Cleanup step failed', { stepName, error: errorMessage });
     }
   }
 
@@ -258,12 +260,12 @@ export class CleanupService extends EventEmitter {
       );
 
       if (stdout.trim() !== 'none' && stdout.trim().length > 0) {
-        console.warn('Some browser processes may still be running, but continuing...');
+        this.logger.warn('Some browser processes may still be running, but continuing');
         // Don't throw error - just warn and continue
       }
     } catch (error) {
       // Log the error but don't fail the cleanup
-      console.warn('Browser termination had issues, but continuing:', error);
+      this.logger.warn('Browser termination had issues, but continuing', { error });
     }
   }
 
@@ -286,7 +288,7 @@ export class CleanupService extends EventEmitter {
           { timeout: 5000 }
         );
       } catch (error) {
-        console.warn(`Failed to clear ${path}:`, error);
+        this.logger.warn('Failed to clear temporary files', { path, error });
       }
     }
   }
@@ -310,7 +312,7 @@ export class CleanupService extends EventEmitter {
           { timeout: 5000 }
         );
       } catch (error) {
-        console.warn(`Failed to clear cache ${path}:`, error);
+        this.logger.warn('Failed to clear browser cache', { path, error });
       }
     }
   }
@@ -327,7 +329,7 @@ export class CleanupService extends EventEmitter {
       );
     } catch (error) {
       // Ignore errors - processes might not exist
-      console.warn('Process reset had issues, but continuing:', error);
+      this.logger.warn('Process reset had issues, but continuing', { error });
     }
 
     // Wait for processes to restart
@@ -367,7 +369,7 @@ export class CleanupService extends EventEmitter {
           { timeout: 2000 }
         );
       } catch (error) {
-        console.warn(`Failed to reset env: ${cmd}`, error);
+        this.logger.warn('Failed to reset environment variable', { command: cmd, error });
       }
     }
   }
@@ -382,7 +384,7 @@ export class CleanupService extends EventEmitter {
         { timeout: 5000 }
       );
     } catch (error) {
-      console.warn('Failed to reset file permissions:', error);
+      this.logger.warn('Failed to reset file permissions', { error });
     }
   }
 
@@ -398,7 +400,7 @@ export class CleanupService extends EventEmitter {
         { timeout: 5000 }
       );
     } catch (error) {
-      console.warn('Failed to restart MCP server:', error);
+      this.logger.warn('Failed to restart MCP server', { error });
     }
   }
 
@@ -468,7 +470,7 @@ export class CleanupService extends EventEmitter {
    * Perform rollback when cleanup fails
    */
   private async performRollback(containerName: string, cleanupResult: CleanupResult): Promise<boolean> {
-    console.log(`🔄 Performing rollback for ${containerName}`);
+    this.logger.info('Performing rollback', { containerName });
     
     try {
       // Basic rollback - restart the container to restore to known state
@@ -480,12 +482,12 @@ export class CleanupService extends EventEmitter {
       // Wait for container to be ready
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      console.log(`✅ Rollback completed for ${containerName}`);
+      this.logger.info('Rollback completed', { containerName });
       this.emit('rollbackCompleted', { containerName, cleanupResult });
       return true;
 
     } catch (error) {
-      console.error(`❌ Rollback failed for ${containerName}:`, error);
+      this.logger.error('Rollback failed', { containerName, error });
       this.emit('rollbackFailed', { containerName, error });
       return false;
     }

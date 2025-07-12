@@ -1,4 +1,5 @@
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 import { PlaywrightMcpContainer } from './container';
 import { SimpleHealthChecker } from './health-checker';
 import { DockerInspector } from './docker-inspector';
@@ -20,6 +21,7 @@ export interface PoolMetrics {
 }
 
 export class ContainerPoolManager {
+  private readonly logger = createLogger({ context: 'ContainerPoolManager' });
   private containers: Map<string, PlaywrightMcpContainer> = new Map();
   private healthChecker: SimpleHealthChecker;
   private dockerInspector: DockerInspector;
@@ -69,20 +71,20 @@ export class ContainerPoolManager {
    */
   private setupHealthMonitorEvents(): void {
     this.healthMonitor.on('containerUnhealthy', async (event) => {
-      console.log(`Container ${event.containerId} marked as unhealthy (${event.consecutiveFailures} failures)`);
+      this.logger.info('Container marked as unhealthy', { containerId: event.containerId, consecutiveFailures: event.consecutiveFailures });
       await this.handleUnhealthyContainer(event.containerId);
     });
 
     this.healthMonitor.on('memoryThresholdExceeded', (event) => {
-      console.warn(`Container ${event.containerId} exceeded memory threshold: ${event.memoryUsage}MB > ${event.threshold}MB`);
+      this.logger.warn('Container exceeded memory threshold', { containerId: event.containerId, memoryUsage: event.memoryUsage, threshold: event.threshold });
     });
 
     this.healthMonitor.on('cpuThresholdExceeded', (event) => {
-      console.warn(`Container ${event.containerId} exceeded CPU threshold: ${event.cpuUsage}% > ${event.threshold}%`);
+      this.logger.warn('Container exceeded CPU threshold', { containerId: event.containerId, cpuUsage: event.cpuUsage, threshold: event.threshold });
     });
 
     this.healthMonitor.on('statusChanged', (event) => {
-      console.log(`Container ${event.containerId} status changed: ${event.previousStatus} → ${event.newStatus}`);
+      this.logger.info('Container status changed', { containerId: event.containerId, previousStatus: event.previousStatus, newStatus: event.newStatus });
     });
   }
 
@@ -91,15 +93,15 @@ export class ContainerPoolManager {
    */
   private setupCleanupEvents(): void {
     this.cleanupService.on('cleanupStarted', (event) => {
-      console.log(`🧹 Cleanup started for container ${event.containerName}`);
+      this.logger.info('Cleanup started for container', { containerName: event.containerName });
     });
 
     this.cleanupService.on('cleanupCompleted', (event) => {
-      console.log(`✅ Cleanup completed for container ${event.containerName}`);
+      this.logger.info('Cleanup completed for container', { containerName: event.containerName });
     });
 
     this.cleanupService.on('cleanupFailed', (event) => {
-      console.warn(`⚠️ Cleanup failed for container ${event.containerName}:`, event.result.errors);
+      this.logger.warn('Cleanup failed for container', { containerName: event.containerName, errors: event.result.errors });
     });
   }
 
@@ -108,15 +110,15 @@ export class ContainerPoolManager {
    */
   private setupResetEvents(): void {
     this.resetManager.on('resetStarted', (event) => {
-      console.log(`🔄 Container reset started for ${event.containerName} (${event.reason})`);
+      this.logger.info('Container reset started', { containerName: event.containerName, reason: event.reason });
     });
 
     this.resetManager.on('resetCompleted', (event) => {
-      console.log(`✅ Container reset completed for ${event.containerName} using ${event.strategy}`);
+      this.logger.info('Container reset completed', { containerName: event.containerName, strategy: event.strategy });
     });
 
     this.resetManager.on('resetFailed', (event) => {
-      console.error(`❌ Container reset failed for ${event.containerName}:`, event.result.errors);
+      this.logger.error('Container reset failed', { containerName: event.containerName, errors: event.result.errors });
     });
   }
 
@@ -128,7 +130,7 @@ export class ContainerPoolManager {
     if (!container) return;
 
     try {
-      console.log(`Handling unhealthy container ${containerId} with reset manager`);
+      this.logger.info('Handling unhealthy container with reset manager', { containerId });
       
       // Use reset manager instead of simple restart
       const resetResult = await this.resetManager.resetOnHealthFailure(container);
@@ -136,13 +138,13 @@ export class ContainerPoolManager {
       if (resetResult?.success) {
         // Re-register with health monitor after successful reset
         this.healthMonitor.registerContainer(containerId, container.name, container.port);
-        console.log(`Container ${containerId} reset and re-registered successfully`);
+        this.logger.info('Container reset and re-registered successfully', { containerId });
       } else {
-        console.error(`Failed to reset container ${containerId}:`, resetResult?.errors);
+        this.logger.error('Failed to reset container', { containerId, errors: resetResult?.errors });
         // Mark container as problematic (in production, might trigger replacement)
       }
     } catch (error) {
-      console.error(`Failed to handle unhealthy container ${containerId}:`, error);
+      this.logger.error('Failed to handle unhealthy container', { containerId, error });
     }
   }
 
@@ -150,7 +152,7 @@ export class ContainerPoolManager {
    * Initialize the container pool
    */
   async initialize(): Promise<void> {
-    console.log('Initializing container pool manager...');
+    this.logger.info('Initializing container pool manager');
     
     // Initialize Docker environment
     await this.dockerInspector.initialize();
@@ -178,9 +180,9 @@ export class ContainerPoolManager {
         // Register with health monitor
         this.healthMonitor.registerContainer(config.id, config.name, config.port);
         
-        console.log(`Container ${config.id} started successfully on port ${config.port}`);
+        this.logger.info('Container started successfully', { containerId: config.id, port: config.port });
       } catch (error) {
-        console.error(`Failed to start container ${config.id}:`, error);
+        this.logger.error('Failed to start container', { containerId: config.id, error });
         this.metrics.failedAllocations++;
       }
     }
@@ -190,7 +192,7 @@ export class ContainerPoolManager {
     
     // Update metrics
     await this.updateMetrics();
-    console.log('Container pool manager initialized with health monitoring');
+    this.logger.info('Container pool manager initialized with health monitoring');
   }
 
   /**
@@ -217,7 +219,7 @@ export class ContainerPoolManager {
       }
 
       // Add to queue and wait
-      console.log(`No containers immediately available, queuing ${testRunId}`);
+      this.logger.info('No containers immediately available, queuing request', { testRunId });
       await this.allocationQueue.enqueue(testRunId, timeoutMs);
       
       // Poll for container availability
@@ -234,7 +236,7 @@ export class ContainerPoolManager {
       return container;
       
     } catch (error) {
-      console.error('Error in container allocation:', error);
+      this.logger.error('Error in container allocation', { error });
       this.metrics.failedAllocations++;
       await this.updateMetrics();
       return null;
@@ -261,7 +263,7 @@ export class ContainerPoolManager {
     );
     
     if (!isHealthy) {
-      console.log(`Container ${availableContainer.containerId} is unhealthy, attempting restart...`);
+      this.logger.info('Container is unhealthy, attempting restart', { containerId: availableContainer.containerId });
       
       // Try to restart and check again
       if (containerObj) {
@@ -275,11 +277,11 @@ export class ContainerPoolManager {
           );
           
           if (!isHealthyAfterRestart) {
-            console.log(`Container ${availableContainer.containerId} still unhealthy after restart`);
+            this.logger.info('Container still unhealthy after restart', { containerId: availableContainer.containerId });
             return null;
           }
         } catch (error) {
-          console.error(`Failed to restart container ${availableContainer.containerId}:`, error);
+          this.logger.error('Failed to restart container', { containerId: availableContainer.containerId, error });
           return null;
         }
       }
@@ -288,7 +290,7 @@ export class ContainerPoolManager {
     // Perform reset on allocation if enabled
     const resetResult = await this.resetManager.resetOnAllocation(containerObj);
     if (resetResult && !resetResult.success) {
-      console.warn(`Reset on allocation failed for ${availableContainer.containerId}, proceeding anyway`);
+      this.logger.warn('Reset on allocation failed, proceeding anyway', { containerId: availableContainer.containerId });
     }
 
     // Allocate container
@@ -328,7 +330,7 @@ export class ContainerPoolManager {
       // It's our turn, try to allocate
       const container = await this.tryImmediateAllocation(testRunId);
       if (container) {
-        console.log(`Allocated queued container for ${testRunId}`);
+        this.logger.info('Allocated queued container', { testRunId });
         return container;
       }
       
@@ -338,7 +340,7 @@ export class ContainerPoolManager {
     
     // Timeout - remove from queue
     await this.allocationQueue.remove(testRunId);
-    console.log(`Allocation timeout for ${testRunId}`);
+    this.logger.info('Allocation timeout', { testRunId });
     return null;
   }
 
@@ -348,14 +350,14 @@ export class ContainerPoolManager {
   async releaseContainer(containerId: string): Promise<void> {
     const container = this.containers.get(containerId);
     if (!container) {
-      console.error(`Container ${containerId} not found`);
+      this.logger.error('Container not found', { containerId });
       return;
     }
 
     // Perform reset on release if enabled
     const resetResult = await this.resetManager.resetOnRelease(container);
     if (resetResult && !resetResult.success) {
-      console.warn(`Reset on release failed for ${containerId}:`, resetResult.errors);
+      this.logger.warn('Reset on release failed', { containerId, errors: resetResult.errors });
       // Continue with release even if reset failed
     }
 
@@ -373,18 +375,18 @@ export class ContainerPoolManager {
     // Process queue if there are waiting requests
     const queueSize = await this.allocationQueue.getQueueSize();
     if (queueSize > 0) {
-      console.log(`Container ${containerId} released, processing queue (${queueSize} waiting)`);
+      this.logger.info('Container released, processing queue', { containerId, queueSize });
     }
     
     await this.updateMetrics();
-    console.log(`Container ${containerId} released`);
+    this.logger.info('Container released', { containerId });
   }
 
   /**
    * Shutdown all containers
    */
   async shutdown(): Promise<void> {
-    console.log('Shutting down container pool manager...');
+    this.logger.info('Shutting down container pool manager');
     
     // Stop health monitoring
     this.healthMonitor.stopMonitoring();
@@ -397,7 +399,7 @@ export class ContainerPoolManager {
         await container.stop();
         await container.remove();
       } catch (error) {
-        console.error(`Failed to shutdown container ${container.id}:`, error);
+        this.logger.error('Failed to shutdown container', { containerId: container.id, error });
       }
     }
     
@@ -407,7 +409,7 @@ export class ContainerPoolManager {
     }
     
     this.containers.clear();
-    console.log('Container pool manager shutdown complete');
+    this.logger.info('Container pool manager shutdown complete');
   }
 
   /**
@@ -550,13 +552,13 @@ export class ContainerPoolManager {
       throw new Error(`Container ${containerId} not found`);
     }
 
-    console.log(`Manual cleanup requested for container ${containerId}`);
+    this.logger.info('Manual cleanup requested for container', { containerId });
     const cleanupResult = await this.cleanupService.cleanupContainer(containerId, container.name);
     
     if (!cleanupResult.success) {
-      console.warn(`Manual cleanup failed for ${containerId}:`, cleanupResult.errors);
+      this.logger.warn('Manual cleanup failed', { containerId, errors: cleanupResult.errors });
     } else {
-      console.log(`Manual cleanup completed for ${containerId}`);
+      this.logger.info('Manual cleanup completed', { containerId });
     }
   }
 
@@ -569,13 +571,13 @@ export class ContainerPoolManager {
       throw new Error(`Container ${containerId} not found`);
     }
 
-    console.log(`Manual reset requested for container ${containerId}`);
+    this.logger.info('Manual reset requested for container', { containerId });
     const resetResult = await this.resetManager.resetContainer(container, 'manual');
     
     if (!resetResult.success) {
-      console.warn(`Manual reset failed for ${containerId}:`, resetResult.errors);
+      this.logger.warn('Manual reset failed', { containerId, errors: resetResult.errors });
     } else {
-      console.log(`Manual reset completed for ${containerId} using ${resetResult.method}`);
+      this.logger.info('Manual reset completed', { containerId, method: resetResult.method });
       
       // Re-register with health monitor after successful reset
       this.healthMonitor.registerContainer(containerId, container.name, container.port);

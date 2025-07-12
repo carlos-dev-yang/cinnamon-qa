@@ -1,4 +1,5 @@
 import { RedisClient } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 
 export interface QueuedRequest {
   testRunId: string;
@@ -7,6 +8,7 @@ export interface QueuedRequest {
 }
 
 export class AllocationQueue {
+  private readonly logger = createLogger({ context: 'AllocationQueue' });
   private redisClient: RedisClient;
   private queueKey = 'container:allocation:queue';
   private processingKey = 'container:allocation:processing';
@@ -32,7 +34,7 @@ export class AllocationQueue {
     const expirationKey = `${this.queueKey}:${testRunId}`;
     await this.redisClient.instance.setex(expirationKey, Math.ceil(timeoutMs / 1000), 'pending');
 
-    console.log(`Queued allocation request for ${testRunId}`);
+    this.logger.info('Queued allocation request', { testRunId });
   }
 
   /**
@@ -54,7 +56,7 @@ export class AllocationQueue {
       const exists = await this.redisClient.instance.exists(expirationKey);
       
       if (!exists) {
-        console.log(`Request ${request.testRunId} has expired, skipping`);
+        this.logger.info('Request has expired, skipping', { testRunId: request.testRunId });
         return this.dequeue(); // Try next request
       }
 
@@ -63,7 +65,7 @@ export class AllocationQueue {
       
       return request;
     } catch (error) {
-      console.error('Failed to parse queued request:', error);
+      this.logger.error('Failed to parse queued request', { error });
       return this.dequeue(); // Try next request
     }
   }
@@ -93,7 +95,7 @@ export class AllocationQueue {
           const expirationKey = `${this.queueKey}:${testRunId}`;
           await this.redisClient.instance.del(expirationKey);
           
-          console.log(`Removed ${testRunId} from allocation queue`);
+          this.logger.info('Removed request from allocation queue', { testRunId });
           return true;
         }
       } catch (error) {
@@ -131,7 +133,7 @@ export class AllocationQueue {
     }
     
     if (cleanedCount > 0) {
-      console.log(`Cleaned up ${cleanedCount} expired requests from queue`);
+      this.logger.info('Cleaned up expired requests from queue', { cleanedCount });
     }
     
     return cleanedCount;
