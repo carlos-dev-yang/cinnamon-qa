@@ -7,6 +7,8 @@ import { AllocationQueue, QueuedRequest } from './allocation-queue';
 import { HealthMonitor, ContainerHealthStatus } from './health-monitor';
 import { CleanupService } from './cleanup-service';
 import { ContainerResetManager } from './container-reset-manager';
+import { ResourceManager, TestPriority, ResourceRequest, AllocationResult } from './resource-manager';
+import { TimeoutManager, TimeoutSession } from './timeout-manager';
 import { Container, ContainerState, ContainerPoolConfig } from './types';
 
 export interface PoolMetrics {
@@ -30,6 +32,8 @@ export class ContainerPoolManager {
   private healthMonitor: HealthMonitor;
   private cleanupService: CleanupService;
   private resetManager: ContainerResetManager;
+  private resourceManager: ResourceManager;
+  private timeoutManager: TimeoutManager;
   
   // Metrics
   private metrics: PoolMetrics = {
@@ -59,11 +63,20 @@ export class ContainerPoolManager {
     this.healthMonitor = new HealthMonitor(redisClient);
     this.cleanupService = new CleanupService();
     this.resetManager = new ContainerResetManager(this.cleanupService, this.healthChecker);
+    this.resourceManager = new ResourceManager(redisClient);
+    this.timeoutManager = new TimeoutManager();
     
     // Setup event listeners
     this.setupHealthMonitorEvents();
     this.setupCleanupEvents();
     this.setupResetEvents();
+    this.setupResourceManagerEvents();
+    this.setupTimeoutManagerEvents();
+
+    // Set up resource manager callback for actual container allocation
+    this.resourceManager.setContainerAllocationCallback(async (testRunId: string) => {
+      return await this.tryImmediateAllocation(testRunId);
+    });
   }
 
   /**
@@ -119,6 +132,76 @@ export class ContainerPoolManager {
 
     this.resetManager.on('resetFailed', (event) => {
       this.logger.error('Container reset failed', { containerName: event.containerName, errors: event.result.errors });
+    });
+  }
+
+  /**
+   * Setup resource manager event listeners
+   */
+  private setupResourceManagerEvents(): void {
+    this.resourceManager.on('allocationSuccess', (event) => {
+      this.logger.info('Resource allocation successful', { 
+        testRunId: event.request.testRunId, 
+        waitTimeMs: event.result.waitTimeMs 
+      });
+    });
+
+    this.resourceManager.on('allocationFailure', (event) => {
+      this.logger.warn('Resource allocation failed', { 
+        testRunId: event.request.testRunId, 
+        errors: event.result.errors 
+      });
+    });
+
+    this.resourceManager.on('allocationError', (event) => {
+      this.logger.error('Resource allocation error', { 
+        testRunId: event.request.testRunId, 
+        error: event.error 
+      });
+    });
+
+    this.resourceManager.on('requestQueued', (event) => {
+      this.logger.info('Resource request queued', { 
+        testRunId: event.request.testRunId, 
+        priority: event.request.priority 
+      });
+    });
+  }
+
+  /**
+   * Setup timeout manager event listeners
+   */
+  private setupTimeoutManagerEvents(): void {
+    this.timeoutManager.on('sessionStarted', (event) => {
+      this.logger.info('Timeout session started', { 
+        sessionId: event.session.id, 
+        testRunId: event.session.testRunId,
+        timeoutMs: event.session.timeoutMs 
+      });
+    });
+
+    this.timeoutManager.on('timeoutWarning', (event) => {
+      this.logger.warn('Timeout warning', { 
+        sessionId: event.session.id, 
+        testRunId: event.session.testRunId,
+        remainingTimeMs: event.event.remainingTimeMs 
+      });
+    });
+
+    this.timeoutManager.on('sessionTimeout', (event) => {
+      this.logger.error('Session timeout', { 
+        sessionId: event.session.id, 
+        testRunId: event.session.testRunId,
+        executionTimeMs: event.event.totalElapsedMs 
+      });
+    });
+
+    this.timeoutManager.on('timeoutExtended', (event) => {
+      this.logger.info('Timeout extended', { 
+        sessionId: event.session.id, 
+        testRunId: event.session.testRunId,
+        newTimeoutMs: event.session.timeoutMs 
+      });
     });
   }
 
@@ -196,47 +279,93 @@ export class ContainerPoolManager {
   }
 
   /**
-   * Allocate a container (with queue support)
+   * Allocate a container (with queue support) - Legacy method
    */
   async allocateContainer(testRunId: string, waitForAvailable = true, timeoutMs = 300000): Promise<Container | null> {
-    const startTime = Date.now();
-    
+    // Use advanced allocation with default settings
+    return this.allocateContainerAdvanced({
+      testRunId,
+      priority: TestPriority.NORMAL,
+      requestedAt: new Date(),
+      timeoutMs,
+      maxRetries: 3,
+    });
+  }
+
+  /**
+   * Advanced container allocation with resource management
+   */
+  async allocateContainerAdvanced(request: ResourceRequest): Promise<Container | null> {
+    this.logger.info('Advanced container allocation requested', {
+      testRunId: request.testRunId,
+      priority: request.priority,
+      timeoutMs: request.timeoutMs,
+    });
+
+    // Start timeout session
+    const timeoutSessionId = this.timeoutManager.startSession(request.testRunId, request.timeoutMs);
+
     try {
       // Try immediate allocation first
-      const immediateContainer = await this.tryImmediateAllocation(testRunId);
+      const immediateContainer = await this.tryImmediateAllocation(request.testRunId);
       if (immediateContainer) {
+        // Complete timeout session
+        this.timeoutManager.completeSession(timeoutSessionId);
+        
         this.metrics.totalAllocations++;
-        this.updateAllocationTime(Date.now() - startTime);
         await this.updateMetrics();
+        
+        this.logger.info('Immediate container allocation successful', {
+          testRunId: request.testRunId,
+          containerId: immediateContainer.id,
+        });
+        
         return immediateContainer;
       }
 
-      // If no container available and not waiting, return null
-      if (!waitForAvailable) {
+      // Use resource manager for advanced allocation
+      const allocationResult = await this.resourceManager.requestAllocation(request);
+      
+      if (allocationResult.success && allocationResult.container) {
+        // Complete timeout session
+        this.timeoutManager.completeSession(timeoutSessionId);
+        
+        this.metrics.totalAllocations++;
+        this.updateAllocationTime(allocationResult.waitTimeMs);
+        await this.updateMetrics();
+        
+        this.logger.info('Advanced container allocation successful', {
+          testRunId: request.testRunId,
+          containerId: allocationResult.container.id,
+          waitTimeMs: allocationResult.waitTimeMs,
+          degradedMode: allocationResult.degradedMode,
+        });
+        
+        return allocationResult.container;
+      } else {
+        // Complete timeout session
+        this.timeoutManager.completeSession(timeoutSessionId);
+        
         this.metrics.failedAllocations++;
         await this.updateMetrics();
+        
+        this.logger.warn('Advanced container allocation failed', {
+          testRunId: request.testRunId,
+          errors: allocationResult.errors,
+          waitTimeMs: allocationResult.waitTimeMs,
+        });
+        
         return null;
       }
-
-      // Add to queue and wait
-      this.logger.info('No containers immediately available, queuing request', { testRunId });
-      await this.allocationQueue.enqueue(testRunId, timeoutMs);
-      
-      // Poll for container availability
-      const container = await this.waitForContainer(testRunId, timeoutMs);
-      
-      if (container) {
-        this.metrics.totalAllocations++;
-        this.updateAllocationTime(Date.now() - startTime);
-      } else {
-        this.metrics.failedAllocations++;
-      }
-      
-      await this.updateMetrics();
-      return container;
       
     } catch (error) {
-      this.logger.error('Error in container allocation', { error });
+      // Complete timeout session
+      this.timeoutManager.completeSession(timeoutSessionId);
+      
+      this.logger.error('Error in advanced container allocation', { 
+        testRunId: request.testRunId, 
+        error 
+      });
       this.metrics.failedAllocations++;
       await this.updateMetrics();
       return null;
@@ -354,11 +483,20 @@ export class ContainerPoolManager {
       return;
     }
 
+    // Get current allocation info
+    const containerState = await this.getContainerState(containerId);
+    const testRunId = containerState?.allocatedTo;
+
     // Perform reset on release if enabled
     const resetResult = await this.resetManager.resetOnRelease(container);
     if (resetResult && !resetResult.success) {
       this.logger.warn('Reset on release failed', { containerId, errors: resetResult.errors });
       // Continue with release even if reset failed
+    }
+
+    // Release from resource manager if testRunId exists
+    if (testRunId) {
+      await this.resourceManager.releaseAllocation(testRunId);
     }
 
     // Update Redis state
@@ -379,7 +517,7 @@ export class ContainerPoolManager {
     }
     
     await this.updateMetrics();
-    this.logger.info('Container released', { containerId });
+    this.logger.info('Container released', { containerId, testRunId });
   }
 
   /**
@@ -390,6 +528,10 @@ export class ContainerPoolManager {
     
     // Stop health monitoring
     this.healthMonitor.stopMonitoring();
+    
+    // Shutdown resource manager and timeout manager
+    await this.resourceManager.shutdown();
+    await this.timeoutManager.shutdown();
     
     for (const container of this.containers.values()) {
       try {
@@ -611,5 +753,105 @@ export class ContainerPoolManager {
       resetConfig: this.resetManager.getConfig(),
       activeResets: this.resetManager.getActiveResets(),
     };
+  }
+
+  /**
+   * Get resource manager instance
+   */
+  getResourceManager(): ResourceManager {
+    return this.resourceManager;
+  }
+
+  /**
+   * Get timeout manager instance
+   */
+  getTimeoutManager(): TimeoutManager {
+    return this.timeoutManager;
+  }
+
+  /**
+   * Get comprehensive system analytics
+   */
+  async getSystemAnalytics(): Promise<{
+    poolMetrics: PoolMetrics;
+    resourceMetrics: any;
+    timeoutMetrics: any;
+    resourceAnalytics: any;
+    optimizationRecommendations: any[];
+  }> {
+    const poolStatus = await this.getPoolStatus();
+    const resourceMetrics = this.resourceManager.getMetrics();
+    const timeoutMetrics = this.timeoutManager.getMetrics();
+    const resourceAnalytics = this.resourceManager.getResourceAnalytics();
+    const optimizationRecommendations = await this.resourceManager.getOptimizationRecommendations();
+
+    return {
+      poolMetrics: poolStatus.metrics,
+      resourceMetrics,
+      timeoutMetrics,
+      resourceAnalytics,
+      optimizationRecommendations,
+    };
+  }
+
+  /**
+   * Request timeout extension for a test
+   */
+  async requestTimeoutExtension(testRunId: string, reason?: string): Promise<boolean> {
+    // Find active timeout session for this test
+    const activeSessions = this.timeoutManager.getActiveSessions();
+    const session = activeSessions.find(s => s.testRunId === testRunId);
+    
+    if (!session) {
+      this.logger.warn('No active timeout session found for test', { testRunId });
+      return false;
+    }
+
+    return await this.timeoutManager.requestExtension(session.id, reason);
+  }
+
+  /**
+   * Get test execution status including timeout information
+   */
+  getTestExecutionStatus(testRunId: string): {
+    containerAllocated: boolean;
+    containerId?: string;
+    timeoutSession?: any;
+    resourceRequest?: any;
+  } {
+    // Find allocated container
+    const allocatedContainer = Array.from(this.containers.entries())
+      .find(([_, container]) => (container as any).testRunId === testRunId);
+
+    // Find timeout session
+    const activeSessions = this.timeoutManager.getActiveSessions();
+    const timeoutSession = activeSessions.find(s => s.testRunId === testRunId);
+
+    return {
+      containerAllocated: !!allocatedContainer,
+      containerId: allocatedContainer?.[0],
+      timeoutSession: timeoutSession ? {
+        id: timeoutSession.id,
+        remainingTimeMs: timeoutSession.timeoutMs - (Date.now() - timeoutSession.startTime.getTime()),
+        extensionsUsed: timeoutSession.extensionsUsed,
+        strategy: timeoutSession.strategy,
+      } : undefined,
+    };
+  }
+
+  /**
+   * Update resource management configuration
+   */
+  updateResourceConfig(config: any): void {
+    this.resourceManager.updateConfig(config);
+    this.logger.info('Resource management configuration updated', { config });
+  }
+
+  /**
+   * Update timeout management configuration
+   */
+  updateTimeoutConfig(config: any): void {
+    this.timeoutManager.updateConfig(config);
+    this.logger.info('Timeout management configuration updated', { config });
   }
 }
