@@ -4,6 +4,9 @@
   "include": [],
   "references": [
     {
+      "path": "../../packages/queue"
+    },
+    {
       "path": "./tsconfig.app.json"
     }
   ]
