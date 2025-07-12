@@ -16,6 +16,9 @@
     },
     {
       "path": "../../packages/queue"
+    },
+    {
+      "path": "../../packages/logger/tsconfig.lib.json"
     }
   ]
 }
