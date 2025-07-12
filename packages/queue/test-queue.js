@@ -2,27 +2,30 @@
  * BullMQ 큐 시스템 테스트 스크립트
  */
 
+const { createLogger } = require('@cinnamon-qa/logger');
 const { getQueueManager, QueueNames, JobPriority } = require('./dist/index');
 
+const logger = createLogger({ context: 'QueueTestJS' });
+
 async function testQueue() {
-  console.log('🧪 BullMQ 큐 시스템 테스트 시작...');
+  logger.info('BullMQ queue system test started');
   
   const queueManager = getQueueManager();
   let worker = null;
   
   try {
     // 1. 큐 생성 테스트
-    console.log('\n1️⃣ 큐 생성 테스트...');
+    logger.info('Queue creation test starting');
     const testQueue = queueManager.getQueue(QueueNames.TEST_EXECUTION);
-    console.log('✅ 테스트 실행 큐 생성 성공');
+    logger.info('Test execution queue created successfully');
     
     // 2. 큐 통계 확인
-    console.log('\n2️⃣ 초기 큐 통계...');
+    logger.info('Checking initial queue statistics');
     const initialStats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-    console.log('📊 초기 큐 상태:', initialStats);
+    logger.info('Initial queue stats', { stats: initialStats });
     
     // 3. 테스트 Job 생성
-    console.log('\n3️⃣ 테스트 Job 추가...');
+    logger.info('Adding test job');
     const testJobData = {
       testCaseId: 'test-case-001',
       testRunId: 'test-run-001',
@@ -41,15 +44,15 @@ async function testQueue() {
       attempts: 2
     });
     
-    console.log(`✅ Job 추가 성공: ID=${job.id}, 우선순위=${JobPriority.HIGH}`);
+    logger.info('Job added successfully', { jobId: job.id, priority: JobPriority.HIGH });
     
     // 4. Worker 생성 및 Job 처리 테스트
-    console.log('\n4️⃣ Worker 생성 및 Job 처리...');
+    logger.info('Creating worker and processing job');
     
     worker = queueManager.createWorker(
       QueueNames.TEST_EXECUTION,
       async (job) => {
-        console.log(`🏃 Job ${job.id} 처리 시작:`, job.data);
+        logger.info('Job processing started', { jobId: job.id, data: job.data });
         
         // 진행률 업데이트 시뮬레이션
         for (let i = 1; i <= 3; i++) {
@@ -65,7 +68,7 @@ async function testQueue() {
             }
           });
           
-          console.log(`📊 Job ${job.id} 진행률: ${Math.round((i / 3) * 100)}%`);
+          logger.info('Job progress updated', { jobId: job.id, progress: Math.round((i / 3) * 100) });
           await new Promise(resolve => setTimeout(resolve, 500));
         }
         
@@ -83,46 +86,46 @@ async function testQueue() {
       { concurrency: 1 }
     );
     
-    console.log('✅ Worker 생성 완료');
+    logger.info('Worker created successfully');
     
     // 5. Job 완료 대기
-    console.log('\n5️⃣ Job 완료 대기...');
+    logger.info('Waiting for job completion');
     
     const jobResult = await job.waitUntilFinished(queueManager.createQueueEvents(QueueNames.TEST_EXECUTION));
-    console.log('✅ Job 처리 완료:', jobResult);
+    logger.info('Job processing completed', { result: jobResult });
     
     // 6. 최종 큐 통계 확인
-    console.log('\n6️⃣ 최종 큐 통계...');
+    logger.info('Checking final queue statistics');
     const finalStats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-    console.log('📊 최종 큐 상태:', finalStats);
+    logger.info('Final queue stats', { stats: finalStats });
     
     // 7. 큐 정리 테스트
-    console.log('\n7️⃣ 큐 정리 테스트...');
+    logger.info('Queue cleanup test starting');
     await queueManager.cleanQueue(QueueNames.TEST_EXECUTION, 0, 10); // 즉시 정리
-    console.log('🧹 큐 정리 완료');
+    logger.info('Queue cleanup completed');
     
     const cleanedStats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-    console.log('📊 정리 후 큐 상태:', cleanedStats);
+    logger.info('Cleaned queue stats', { stats: cleanedStats });
     
-    console.log('\n🎉 모든 BullMQ 테스트 완료!');
+    logger.info('All BullMQ tests completed successfully');
     
   } catch (error) {
-    console.error('❌ BullMQ 테스트 실패:', error);
+    logger.error('BullMQ test failed', { error: error.message, stack: error.stack });
     process.exit(1);
   } finally {
     // 리소스 정리
-    console.log('\n🧹 리소스 정리...');
+    logger.info('Cleaning up resources');
     if (worker) {
       await worker.close();
-      console.log('Worker 종료 완료');
+      logger.info('Worker closed successfully');
     }
     await queueManager.close();
-    console.log('QueueManager 종료 완료');
+    logger.info('QueueManager closed successfully');
   }
 }
 
 // 테스트 실행
 testQueue().catch(error => {
-  console.error('❌ 테스트 실행 중 오류:', error);
+  logger.error('Test execution failed', { error: error.message, stack: error.stack });
   process.exit(1);
 });

@@ -1,8 +1,10 @@
 import { RedisClient } from '@cinnamon-qa/queue';
 import { SimpleHealthChecker } from './src/health-checker';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testAllocationExisting() {
-  console.log('🚀 Testing Allocation with Existing Container...');
+  const logger = createLogger({ context: 'AllocationExistingTest' });
+  logger.info('Starting allocation test with existing container');
   
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -12,26 +14,26 @@ async function testAllocationExisting() {
   });
   
   try {
-    console.log('📡 Connecting to Redis...');
+    logger.info('Connecting to Redis');
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected successfully');
 
     // Test health check first
     const healthChecker = new SimpleHealthChecker();
     const port = 3001;
     const containerName = 'cinnamon-qa-mcp-1';
     
-    console.log('🔍 Testing existing container health...');
+    logger.info('Testing existing container health', { containerName, port });
     const isHealthy = await healthChecker.isContainerReady(port, containerName);
-    console.log(`Health check result: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`);
+    logger.info('Health check completed', { containerName, port, isHealthy });
     
     if (!isHealthy) {
-      console.log('❌ Container is not healthy, cannot proceed with allocation test');
+      logger.error('Container is not healthy, cannot proceed with allocation test', { containerName, port });
       return;
     }
     
     // Test Redis state management
-    console.log('🔄 Testing Redis state management...');
+    logger.info('Starting Redis state management test');
     
     // Set container state
     const containerId = 'container-1';
@@ -44,10 +46,10 @@ async function testAllocationExisting() {
     
     // Read container state
     const data = await redisClient.instance.hgetall(`container:${containerId}`);
-    console.log('📊 Container state in Redis:', data);
+    logger.info('Container state retrieved from Redis', { containerId, state: data });
     
     // Test allocation
-    console.log('🔄 Testing allocation logic...');
+    logger.info('Starting allocation logic test');
     const testRunId = 'test-run-' + Date.now();
     
     // Mark as allocated
@@ -60,14 +62,14 @@ async function testAllocationExisting() {
       lastCheckedAt: new Date().toISOString(),
     });
     
-    console.log(`✅ Container ${containerId} allocated to ${testRunId}`);
+    logger.info('Container allocated successfully', { containerId, testRunId });
     
     // Check state
     const allocatedData = await redisClient.instance.hgetall(`container:${containerId}`);
-    console.log('📊 Allocated state:', allocatedData);
+    logger.info('Container allocated state verified', { containerId, state: allocatedData });
     
     // Test release
-    console.log('🔄 Testing release logic...');
+    logger.info('Starting release logic test');
     await redisClient.instance.hset(`container:${containerId}`, {
       containerId,
       port: port.toString(),
@@ -78,21 +80,24 @@ async function testAllocationExisting() {
     // Remove allocation fields
     await redisClient.instance.hdel(`container:${containerId}`, 'allocatedTo', 'allocatedAt');
     
-    console.log(`✅ Container ${containerId} released`);
+    logger.info('Container released successfully', { containerId });
     
     // Check final state
     const releasedData = await redisClient.instance.hgetall(`container:${containerId}`);
-    console.log('📊 Released state:', releasedData);
+    logger.info('Container released state verified', { containerId, state: releasedData });
     
-    console.log('🎉 All allocation/release tests passed!');
+    logger.info('All allocation and release tests completed successfully');
     
   } catch (error) {
-    console.error('❌ Error in allocation test:', error);
+    logger.error('Allocation test failed', { error: error.message, stack: error.stack });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected successfully');
   }
 }
 
 // Run test
-testAllocationExisting().catch(console.error);
+testAllocationExisting().catch((error) => {
+  const logger = createLogger({ context: 'AllocationExistingTest' });
+  logger.error('Allocation existing test execution failed', { error: error.message, stack: error.stack });
+});

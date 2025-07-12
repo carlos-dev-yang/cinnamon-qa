@@ -1,8 +1,10 @@
 import { RedisClient } from '@cinnamon-qa/queue';
 import { ContainerPoolManager } from './src/container-pool-manager';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testCleanupAndReset() {
-  console.log('🧹 Testing Container Cleanup and Reset System...\n');
+  const logger = createLogger({ context: 'CleanupResetTest' });
+  logger.info('Starting container cleanup and reset system test');
 
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -13,69 +15,75 @@ async function testCleanupAndReset() {
 
   try {
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected successfully');
 
     // Initialize pool manager with cleanup and reset
     const poolManager = new ContainerPoolManager(redisClient);
-    console.log('📦 Initializing container pool with cleanup and reset...');
+    logger.info('Initializing container pool with cleanup and reset');
     
     await poolManager.initialize();
-    console.log('✅ Container pool initialized\n');
+    logger.info('Container pool initialized successfully');
 
     // Test 1: Basic allocation with automatic reset on allocation
-    console.log('🔄 Test 1: Allocation with automatic reset');
+    logger.info('Starting Test 1: Allocation with automatic reset');
     const container1 = await poolManager.allocateContainer('test-run-1');
-    console.log(`✅ Allocated container: ${container1?.containerId}`);
+    if (container1) {
+      logger.info('Container allocated successfully', { containerId: container1.containerId });
+    } else {
+      logger.warn('Container allocation returned null');
+    }
     
     // Simulate some work
-    console.log('⏰ Simulating test work for 5 seconds...');
+    logger.info('Simulating test work for 5 seconds');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Test 2: Release with automatic cleanup
-    console.log('\n🧹 Test 2: Release with automatic cleanup');
+    logger.info('Starting Test 2: Release with automatic cleanup');
     if (container1) {
       await poolManager.releaseContainer(container1.containerId);
-      console.log(`✅ Released container: ${container1.containerId}`);
+      logger.info('Container released successfully', { containerId: container1.containerId });
     }
 
     // Test 3: Manual cleanup
-    console.log('\n🔧 Test 3: Manual cleanup test');
+    logger.info('Starting Test 3: Manual cleanup test');
     const container2 = await poolManager.allocateContainer('test-run-2');
     if (container2) {
-      console.log(`Allocated container for manual cleanup test: ${container2.containerId}`);
+      logger.info('Container allocated for manual cleanup test', { containerId: container2.containerId });
       
       // Perform manual cleanup
       await poolManager.cleanupContainer(container2.containerId);
-      console.log(`Manual cleanup completed for ${container2.containerId}`);
+      logger.info('Manual cleanup completed successfully', { containerId: container2.containerId });
       
       await poolManager.releaseContainer(container2.containerId);
     }
 
     // Test 4: Manual reset with different strategies
-    console.log('\n🔄 Test 4: Manual reset strategies test');
+    logger.info('Starting Test 4: Manual reset strategies test');
     const container3 = await poolManager.allocateContainer('test-run-3');
     if (container3) {
-      console.log(`Allocated container for reset test: ${container3.containerId}`);
+      logger.info('Container allocated for reset test', { containerId: container3.containerId });
       
       // Test manual reset
       await poolManager.resetContainer(container3.containerId);
-      console.log(`Manual reset completed for ${container3.containerId}`);
+      logger.info('Manual reset completed successfully', { containerId: container3.containerId });
       
       await poolManager.releaseContainer(container3.containerId);
     }
 
     // Test 5: Configuration and statistics
-    console.log('\n📊 Test 5: Cleanup and Reset Configuration');
+    logger.info('Starting Test 5: Cleanup and Reset Configuration');
     const stats = poolManager.getCleanupResetStats();
-    console.log('Cleanup Configuration:', JSON.stringify(stats.cleanupConfig, null, 2));
-    console.log('Reset Configuration:', JSON.stringify(stats.resetConfig, null, 2));
-    console.log('Active Resets:', stats.activeResets);
+    logger.info('Cleanup and reset configuration retrieved', {
+      cleanupConfig: stats.cleanupConfig,
+      resetConfig: stats.resetConfig,
+      activeResets: stats.activeResets
+    });
 
     // Test 6: Cleanup service configuration
-    console.log('\n⚙️ Test 6: Cleanup service configuration test');
+    logger.info('Starting Test 6: Cleanup service configuration test');
     const cleanupService = poolManager.getCleanupService();
     const originalConfig = cleanupService.getConfig();
-    console.log('Original cleanup config:', originalConfig);
+    logger.info('Original cleanup configuration retrieved', { config: originalConfig });
     
     // Update configuration
     cleanupService.updateConfig({
@@ -85,13 +93,13 @@ async function testCleanupAndReset() {
     });
     
     const updatedConfig = cleanupService.getConfig();
-    console.log('Updated cleanup config:', updatedConfig);
+    logger.info('Cleanup configuration updated successfully', { config: updatedConfig });
 
     // Test 7: Reset manager configuration
-    console.log('\n🔄 Test 7: Reset manager configuration test');
+    logger.info('Starting Test 7: Reset manager configuration test');
     const resetManager = poolManager.getResetManager();
     const originalResetConfig = resetManager.getConfig();
-    console.log('Original reset config:', originalResetConfig);
+    logger.info('Original reset configuration retrieved', { config: originalResetConfig });
     
     // Update reset configuration
     resetManager.updateConfig({
@@ -102,38 +110,38 @@ async function testCleanupAndReset() {
     });
     
     const updatedResetConfig = resetManager.getConfig();
-    console.log('Updated reset config:', updatedResetConfig);
+    logger.info('Reset configuration updated successfully', { config: updatedResetConfig });
 
     // Test 8: Test without auto-reset on allocation
-    console.log('\n🔄 Test 8: Test without auto-reset on allocation');
+    logger.info('Starting Test 8: Test without auto-reset on allocation');
     const container4 = await poolManager.allocateContainer('test-run-4');
     if (container4) {
-      console.log(`Allocated container without auto-reset: ${container4.containerId}`);
+      logger.info('Container allocated without auto-reset', { containerId: container4.containerId });
       await poolManager.releaseContainer(container4.containerId);
-      console.log(`Released container with auto-reset on release: ${container4.containerId}`);
+      logger.info('Container released with auto-reset on release', { containerId: container4.containerId });
     }
 
     // Test 9: Reset statistics
-    console.log('\n📈 Test 9: Reset statistics');
+    logger.info('Starting Test 9: Reset statistics');
     const resetStats = resetManager.getResetStats();
-    console.log('Reset Statistics:', JSON.stringify(resetStats, null, 2));
+    logger.info('Reset statistics retrieved', { stats: resetStats });
 
     // Test 10: Error handling and validation
-    console.log('\n⚠️ Test 10: Error handling test');
+    logger.info('Starting Test 10: Error handling test');
     try {
       await poolManager.cleanupContainer('non-existent-container');
     } catch (error) {
-      console.log(`✅ Correctly caught error for non-existent container: ${error.message}`);
+      logger.info('Correctly caught error for non-existent container cleanup', { error: error.message });
     }
 
     try {
       await poolManager.resetContainer('non-existent-container');
     } catch (error) {
-      console.log(`✅ Correctly caught error for non-existent reset: ${error.message}`);
+      logger.info('Correctly caught error for non-existent container reset', { error: error.message });
     }
 
     // Test 11: Concurrent operations
-    console.log('\n🔄 Test 11: Concurrent cleanup/reset operations');
+    logger.info('Starting Test 11: Concurrent cleanup/reset operations');
     const concurrentPromises = [];
     
     // Allocate both containers
@@ -150,33 +158,37 @@ async function testCleanupAndReset() {
       );
       
       await Promise.allSettled(concurrentPromises);
-      console.log('✅ Concurrent operations completed');
+      logger.info('Concurrent cleanup and reset operations completed successfully');
       
       // Release containers
       await poolManager.releaseContainer(concurrentContainer1.containerId);
       await poolManager.releaseContainer(concurrentContainer2.containerId);
     }
 
-    console.log('\n🎉 All cleanup and reset tests completed successfully!');
+    logger.info('All cleanup and reset tests completed successfully');
 
     // Final cleanup
-    console.log('\n🧹 Shutting down...');
+    logger.info('Initiating shutdown process');
     await poolManager.shutdown();
-    console.log('✅ Pool manager shutdown complete');
+    logger.info('Pool manager shutdown completed successfully');
 
   } catch (error) {
-    console.error('❌ Test failed:', error);
+    logger.error('Cleanup and reset test failed', { error: error.message, stack: error.stack });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected successfully');
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down gracefully...');
+  const logger = createLogger({ context: 'CleanupResetTest' });
+  logger.info('Received SIGINT - shutting down gracefully');
   process.exit(0);
 });
 
 // Run the test
-testCleanupAndReset().catch(console.error);
+testCleanupAndReset().catch((error) => {
+  const logger = createLogger({ context: 'CleanupResetTest' });
+  logger.error('Cleanup and reset test execution failed', { error: error.message, stack: error.stack });
+});

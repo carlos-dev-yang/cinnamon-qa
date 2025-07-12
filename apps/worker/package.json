@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "@cinnamon-qa/logger": "^0.0.1",
     "@cinnamon-qa/queue": "^1.0.0",
     "@cinnamon-qa/database": "^1.0.0"
   },

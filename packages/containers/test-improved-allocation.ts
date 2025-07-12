@@ -1,8 +1,10 @@
 import { RedisClient } from '@cinnamon-qa/queue';
 import { SimpleContainerPool } from './src';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testImprovedAllocation() {
-  console.log('🚀 Testing Improved Container Allocation...');
+  const logger = createLogger({ context: 'ImprovedAllocationTest' });
+  logger.info('Starting improved container allocation test');
   
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -12,110 +14,128 @@ async function testImprovedAllocation() {
   });
   
   try {
-    console.log('📡 Connecting to Redis...');
+    logger.info('Connecting to Redis');
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected successfully');
 
     // Initialize container pool
-    console.log('🐳 Initializing Container Pool...');
+    logger.info('Initializing container pool');
     const containerPool = new SimpleContainerPool(redisClient);
     
     // Initialize pool with 2 containers
     await containerPool.initialize();
-    console.log('✅ Container pool initialized');
+    logger.info('Container pool initialized successfully');
 
     // Wait for containers to be fully ready
-    console.log('⏳ Waiting for containers to be ready...');
+    logger.info('Waiting for containers to be ready');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Test 1: Single allocation
-    console.log('🔄 Test 1: Single allocation...');
+    logger.info('Starting Test 1: Single allocation');
     const testRunId1 = 'test-run-' + Date.now();
     const container1 = await containerPool.allocateContainer(testRunId1);
     
     if (container1) {
-      console.log(`✅ Test 1 Success: Allocated container ${container1.id} on port ${container1.port}`);
+      logger.info('Test 1 completed successfully', {
+        containerId: container1.id,
+        port: container1.port,
+        testRunId: testRunId1
+      });
       
       // Check pool status after first allocation
       const status1 = await containerPool.getPoolStatus();
-      console.log('📊 Status after first allocation:', {
+      logger.info('Pool status after first allocation', {
         total: status1.total,
         available: status1.available,
         allocated: status1.allocated
       });
       
       // Test 2: Second allocation
-      console.log('🔄 Test 2: Second allocation...');
+      logger.info('Starting Test 2: Second allocation');
       const testRunId2 = 'test-run-' + (Date.now() + 1);
       const container2 = await containerPool.allocateContainer(testRunId2);
       
       if (container2) {
-        console.log(`✅ Test 2 Success: Allocated container ${container2.id} on port ${container2.port}`);
+        logger.info('Test 2 completed successfully', {
+          containerId: container2.id,
+          port: container2.port,
+          testRunId: testRunId2
+        });
         
         // Check pool status with both allocated
         const status2 = await containerPool.getPoolStatus();
-        console.log('📊 Status with both allocated:', {
+        logger.info('Pool status with both containers allocated', {
           total: status2.total,
           available: status2.available,
           allocated: status2.allocated
         });
         
         // Test 3: Third allocation (should fail or wait)
-        console.log('🔄 Test 3: Third allocation (should fail)...');
+        logger.info('Starting Test 3: Third allocation (should fail)');
         const testRunId3 = 'test-run-' + (Date.now() + 2);
         const container3 = await containerPool.allocateContainer(testRunId3);
         
         if (container3) {
-          console.log(`⚠️ Test 3 Unexpected: Got container ${container3.id} (pool management issue?)`);
+          logger.warn('Test 3 unexpected result: container allocated when pool should be full', {
+            containerId: container3.id,
+            testRunId: testRunId3
+          });
         } else {
-          console.log('✅ Test 3 Success: No container available (as expected)');
+          logger.info('Test 3 completed successfully: no container available as expected');
         }
         
         // Test 4: Release first container
-        console.log('🔄 Test 4: Release first container...');
+        logger.info('Starting Test 4: Release first container');
         await containerPool.releaseContainer(container1.id);
-        console.log('✅ Released first container');
+        logger.info('First container released successfully', { containerId: container1.id });
         
         // Test 5: Allocate after release
-        console.log('🔄 Test 5: Allocate after release...');
+        logger.info('Starting Test 5: Allocate after release');
         const testRunId4 = 'test-run-' + (Date.now() + 3);
         const container4 = await containerPool.allocateContainer(testRunId4);
         
         if (container4) {
-          console.log(`✅ Test 5 Success: Re-allocated container ${container4.id} on port ${container4.port}`);
+          logger.info('Test 5 completed successfully: container re-allocated after release', {
+            containerId: container4.id,
+            port: container4.port,
+            testRunId: testRunId4
+          });
           
           // Clean up
           await containerPool.releaseContainer(container4.id);
         } else {
-          console.log('❌ Test 5 Failed: Could not allocate after release');
+          logger.error('Test 5 failed: could not allocate container after release');
         }
         
         // Clean up second container
         await containerPool.releaseContainer(container2.id);
-        console.log('✅ Released second container');
+        logger.info('Second container released successfully', { containerId: container2.id });
         
       } else {
-        console.log('❌ Test 2 Failed: Could not allocate second container');
+        logger.error('Test 2 failed: could not allocate second container');
       }
     } else {
-      console.log('❌ Test 1 Failed: Could not allocate first container');
+      logger.error('Test 1 failed: could not allocate first container');
     }
 
     // Final status check
     const finalStatus = await containerPool.getPoolStatus();
-    console.log('📊 Final pool status:', finalStatus);
+    logger.info('Final pool status', finalStatus);
     
-    console.log('🧹 Shutting down...');
+    logger.info('Initiating container pool shutdown');
     await containerPool.shutdown();
-    console.log('✅ Container pool shutdown complete');
+    logger.info('Container pool shutdown completed successfully');
     
   } catch (error) {
-    console.error('❌ Error in allocation test:', error);
+    logger.error('Improved allocation test failed', { error: error.message, stack: error.stack });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected successfully');
   }
 }
 
 // Run test
-testImprovedAllocation().catch(console.error);
+testImprovedAllocation().catch((error) => {
+  const logger = createLogger({ context: 'ImprovedAllocationTest' });
+  logger.error('Improved allocation test execution failed', { error: error.message, stack: error.stack });
+});

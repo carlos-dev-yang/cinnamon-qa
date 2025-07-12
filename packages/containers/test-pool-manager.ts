@@ -1,8 +1,10 @@
 import { RedisClient } from '@cinnamon-qa/queue';
 import { ContainerPoolManager } from './src';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testPoolManager() {
-  console.log('🚀 Testing Advanced Container Pool Manager...');
+  const logger = createLogger({ context: 'PoolManagerTest' });
+  logger.info('Starting advanced container pool manager test');
   
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -12,9 +14,9 @@ async function testPoolManager() {
   });
   
   try {
-    console.log('📡 Connecting to Redis...');
+    logger.info('Connecting to Redis');
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected successfully');
 
     // Clean up existing container if any
     const { exec } = require('child_process');
@@ -28,81 +30,95 @@ async function testPoolManager() {
     }
 
     // Initialize container pool manager
-    console.log('🐳 Initializing Container Pool Manager...');
+    logger.info('Initializing container pool manager');
     const poolManager = new ContainerPoolManager(redisClient);
     
     // This might fail due to container startup issues, but let's see metrics
     try {
       await poolManager.initialize();
-      console.log('✅ Container pool manager initialized');
+      logger.info('Container pool manager initialized successfully');
     } catch (error) {
-      console.log('⚠️ Pool initialization had issues:', error.message);
+      logger.warn('Pool initialization encountered issues', { error: error.message });
     }
 
     // Check initial status
-    console.log('📊 Initial pool status...');
+    logger.info('Checking initial pool status');
     const initialStatus = await poolManager.getPoolStatus();
-    console.log('Metrics:', initialStatus.metrics);
-    console.log('Containers:', initialStatus.containers.length);
-    console.log('Queue size:', initialStatus.queue.size);
+    logger.info('Initial pool status retrieved', {
+      metrics: initialStatus.metrics,
+      containerCount: initialStatus.containers.length,
+      queueSize: initialStatus.queue.size
+    });
 
     // Test allocation without waiting (should fail if no containers)
-    console.log('🔄 Test 1: Immediate allocation (no wait)...');
+    logger.info('Starting Test 1: Immediate allocation (no wait)');
     const testRunId1 = 'test-run-immediate-' + Date.now();
     const container1 = await poolManager.allocateContainer(testRunId1, false);
     
     if (container1) {
-      console.log(`✅ Immediate allocation success: ${container1.id}`);
+      logger.info('Immediate allocation successful', {
+        containerId: container1.id,
+        testRunId: testRunId1
+      });
       
       // Test second immediate allocation
-      console.log('🔄 Test 2: Second immediate allocation...');
+      logger.info('Starting Test 2: Second immediate allocation');
       const testRunId2 = 'test-run-immediate2-' + Date.now();
       const container2 = await poolManager.allocateContainer(testRunId2, false);
       
       if (container2) {
-        console.log(`✅ Second allocation success: ${container2.id}`);
+        logger.info('Second allocation successful', {
+          containerId: container2.id,
+          testRunId: testRunId2
+        });
         
         // Test third allocation (should fail)
-        console.log('🔄 Test 3: Third immediate allocation (should fail)...');
+        logger.info('Starting Test 3: Third immediate allocation (should fail)');
         const testRunId3 = 'test-run-immediate3-' + Date.now();
         const container3 = await poolManager.allocateContainer(testRunId3, false);
         
         if (container3) {
-          console.log(`⚠️ Unexpected: Third allocation succeeded: ${container3.id}`);
+          logger.warn('Unexpected result: third allocation succeeded when pool should be full', {
+            containerId: container3.id,
+            testRunId: testRunId3
+          });
         } else {
-          console.log('✅ Third allocation correctly failed (pool full)');
+          logger.info('Third allocation correctly failed - pool is full');
         }
         
         // Test release
-        console.log('🔄 Test 4: Release first container...');
+        logger.info('Starting Test 4: Release first container');
         await poolManager.releaseContainer(container1.id);
-        console.log('✅ First container released');
+        logger.info('First container released successfully', { containerId: container1.id });
         
         // Test allocation after release
-        console.log('🔄 Test 5: Allocation after release...');
+        logger.info('Starting Test 5: Allocation after release');
         const testRunId4 = 'test-run-after-release-' + Date.now();
         const container4 = await poolManager.allocateContainer(testRunId4, false);
         
         if (container4) {
-          console.log(`✅ Allocation after release success: ${container4.id}`);
+          logger.info('Allocation after release successful', {
+            containerId: container4.id,
+            testRunId: testRunId4
+          });
           await poolManager.releaseContainer(container4.id);
         } else {
-          console.log('❌ Allocation after release failed');
+          logger.error('Allocation after release failed');
         }
         
         // Clean up
         await poolManager.releaseContainer(container2.id);
-        console.log('✅ Second container released');
+        logger.info('Second container released successfully', { containerId: container2.id });
         
       } else {
-        console.log('❌ Second allocation failed');
+        logger.error('Second allocation failed');
       }
     } else {
-      console.log('ℹ️ No containers available for immediate allocation');
+      logger.info('No containers available for immediate allocation');
     }
 
     // Test queue functionality (simulate with fake containers in Redis)
-    console.log('🔄 Test 6: Queue functionality simulation...');
+    logger.info('Starting Test 6: Queue functionality simulation');
     
     // Manually set both containers as allocated to test queue
     await redisClient.instance.hset('container:container-1', {
@@ -122,7 +138,7 @@ async function testPoolManager() {
     });
 
     // Test queue with timeout
-    console.log('🔄 Test 7: Queue allocation with timeout...');
+    logger.info('Starting Test 7: Queue allocation with timeout');
     const testRunIdQueue = 'test-run-queue-' + Date.now();
     
     const startTime = Date.now();
@@ -130,28 +146,39 @@ async function testPoolManager() {
     const endTime = Date.now();
     
     if (queuedContainer) {
-      console.log(`⚠️ Unexpected: Queued allocation succeeded: ${queuedContainer.id}`);
+      logger.warn('Unexpected result: queued allocation succeeded when containers should be busy', {
+        containerId: queuedContainer.id,
+        testRunId: testRunIdQueue
+      });
     } else {
-      console.log(`✅ Queued allocation correctly timed out after ${endTime - startTime}ms`);
+      logger.info('Queued allocation correctly timed out', {
+        timeoutMs: endTime - startTime,
+        testRunId: testRunIdQueue
+      });
     }
 
     // Final status
-    console.log('📊 Final pool status...');
+    logger.info('Checking final pool status');
     const finalStatus = await poolManager.getPoolStatus();
-    console.log('Final metrics:', finalStatus.metrics);
-    console.log('Queue status:', finalStatus.queue);
+    logger.info('Final pool status retrieved', {
+      metrics: finalStatus.metrics,
+      queueStatus: finalStatus.queue
+    });
     
-    console.log('🧹 Shutting down...');
+    logger.info('Initiating container pool manager shutdown');
     await poolManager.shutdown();
-    console.log('✅ Container pool manager shutdown complete');
+    logger.info('Container pool manager shutdown completed successfully');
     
   } catch (error) {
-    console.error('❌ Error in pool manager test:', error);
+    logger.error('Pool manager test failed', { error: error.message, stack: error.stack });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected successfully');
   }
 }
 
 // Run test
-testPoolManager().catch(console.error);
+testPoolManager().catch((error) => {
+  const logger = createLogger({ context: 'PoolManagerTest' });
+  logger.error('Pool manager test execution failed', { error: error.message, stack: error.stack });
+});

@@ -1,9 +1,11 @@
 import { RedisClient } from '@cinnamon-qa/queue';
 import { ContainerPoolManager } from './src/container-pool-manager';
 import { HealthDashboard } from './src/health-dashboard';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testHealthMonitoring() {
-  console.log('🏥 Testing Container Health Monitoring System...\n');
+  const logger = createLogger({ context: 'HealthMonitoringTest' });
+  logger.info('Starting container health monitoring system test');
 
   // Initialize Redis client
   const redisClient = new RedisClient({
@@ -14,56 +16,62 @@ async function testHealthMonitoring() {
 
   try {
     await redisClient.connect();
-    console.log('✅ Redis connected');
+    logger.info('Redis connected successfully');
 
     // Initialize pool manager with health monitoring
     const poolManager = new ContainerPoolManager(redisClient);
-    console.log('📦 Initializing container pool with health monitoring...');
+    logger.info('Initializing container pool with health monitoring');
     
     await poolManager.initialize();
-    console.log('✅ Container pool initialized with health monitoring\n');
+    logger.info('Container pool initialized with health monitoring successfully');
 
     // Create health dashboard
     const dashboard = new HealthDashboard(poolManager, (poolManager as any).healthMonitor);
 
     // Show initial dashboard
-    console.log('📊 Initial Dashboard:');
+    logger.info('Displaying initial health dashboard');
     await dashboard.printDashboard();
 
     // Test allocation and release
-    console.log('\n🔄 Testing allocation and release...');
+    logger.info('Starting allocation and release test');
     const container1 = await poolManager.allocateContainer('test-run-1');
-    console.log(`✅ Allocated container: ${container1?.containerId}`);
+    if (container1) {
+      logger.info('Container allocated successfully', { containerId: container1.containerId });
+    } else {
+      logger.warn('Container allocation returned null');
+    }
 
     // Show dashboard after allocation
     await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('\n📊 Dashboard after allocation:');
+    logger.info('Displaying dashboard after allocation');
     await dashboard.printDashboard();
 
     // Release container
     if (container1) {
       await poolManager.releaseContainer(container1.containerId);
-      console.log(`✅ Released container: ${container1.containerId}`);
+      logger.info('Container released successfully', { containerId: container1.containerId });
     }
 
     // Show dashboard after release
     await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('\n📊 Dashboard after release:');
+    logger.info('Displaying dashboard after release');
     await dashboard.printDashboard();
 
     // Test system status
-    console.log('\n🔍 System Status Check:');
+    logger.info('Starting system status check');
     const systemStatus = await dashboard.getSystemStatus();
-    console.log(`Overall Status: ${systemStatus.overall}`);
-    console.log(`Monitoring: ${systemStatus.monitoring ? 'Active' : 'Inactive'}`);
-    console.log(`Containers: ${systemStatus.containersUp}/${systemStatus.containersTotal} up`);
+    logger.info('System status retrieved', {
+      overall: systemStatus.overall,
+      monitoring: systemStatus.monitoring ? 'Active' : 'Inactive',
+      containersUp: systemStatus.containersUp,
+      containersTotal: systemStatus.containersTotal
+    });
     if (systemStatus.issues.length > 0) {
-      console.log('Issues:');
-      systemStatus.issues.forEach(issue => console.log(`  - ${issue}`));
+      logger.warn('System issues detected', { issues: systemStatus.issues });
     }
 
     // Run periodic monitoring for a bit
-    console.log('\n⏰ Running periodic monitoring for 30 seconds...');
+    logger.info('Starting periodic monitoring for 30 seconds');
     const periodicInterval = dashboard.startPeriodicDashboard(10000); // Every 10 seconds
 
     // Wait for 30 seconds
@@ -71,34 +79,38 @@ async function testHealthMonitoring() {
 
     // Stop periodic monitoring
     clearInterval(periodicInterval);
-    console.log('✅ Stopped periodic monitoring');
+    logger.info('Periodic monitoring stopped successfully');
 
     // Final dashboard
-    console.log('\n📊 Final Dashboard:');
+    logger.info('Displaying final health dashboard');
     await dashboard.printDashboard();
 
     // Test JSON output
-    console.log('\n📄 JSON Dashboard Data:');
+    logger.info('Retrieving JSON dashboard data');
     const jsonData = await dashboard.getDashboardJson();
-    console.log(jsonData);
+    logger.info('JSON dashboard data retrieved', { data: jsonData });
 
-    console.log('\n🧹 Shutting down...');
+    logger.info('Initiating shutdown process');
     await poolManager.shutdown();
-    console.log('✅ Pool manager shutdown complete');
+    logger.info('Pool manager shutdown completed successfully');
 
   } catch (error) {
-    console.error('❌ Test failed:', error);
+    logger.error('Health monitoring test failed', { error: error.message, stack: error.stack });
   } finally {
     await redisClient.disconnect();
-    console.log('✅ Redis disconnected');
+    logger.info('Redis disconnected successfully');
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down gracefully...');
+  const logger = createLogger({ context: 'HealthMonitoringTest' });
+  logger.info('Received SIGINT - shutting down gracefully');
   process.exit(0);
 });
 
 // Run the test
-testHealthMonitoring().catch(console.error);
+testHealthMonitoring().catch((error) => {
+  const logger = createLogger({ context: 'HealthMonitoringTest' });
+  logger.error('Health monitoring test execution failed', { error: error.message, stack: error.stack });
+});

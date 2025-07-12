@@ -118,7 +118,7 @@ process.on('SIGINT', async () => {
   logger.info('Stopping monitor');
   try {
     await execAsync('docker rm -f monitored-mcp');
-    console.log('🧹 Container cleaned up');
+    logger.info('Container cleaned up successfully');
   } catch (error) {
     // Ignore cleanup errors
   }

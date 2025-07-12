@@ -9,22 +9,25 @@ import {
   JobPriority,
   type TestJobData 
 } from '../src';
+import { createLogger } from '@cinnamon-qa/logger';
+
+const logger = createLogger({ context: 'BasicUsage' });
 
 async function basicUsageExample() {
-  console.log('🚀 Basic Queue Usage Example');
+  logger.info('Basic Queue Usage Example');
   
   // 1. Redis 연결
-  console.log('\n1️⃣ Connecting to Redis...');
+  logger.info('Connecting to Redis');
   const redisClient = await connectRedis();
-  console.log('✅ Redis connected');
+  logger.info('Redis connected');
 
   // 2. 큐 매니저 가져오기
-  console.log('\n2️⃣ Getting queue manager...');
+  logger.info('Getting queue manager');
   const queueManager = getQueueManager();
-  console.log('✅ Queue manager ready');
+  logger.info('Queue manager ready');
 
   // 3. 테스트 작업 추가
-  console.log('\n3️⃣ Adding test jobs...');
+  logger.info('Adding test jobs');
   
   const testJobs: TestJobData[] = [
     {
@@ -60,13 +63,13 @@ async function basicUsageExample() {
       attempts: 3,
     });
     jobs.push(job);
-    console.log(`✅ Added job ${job.id} for test case: ${jobData.testCaseId}`);
+    logger.info('Added test job', { jobId: job.id, testCaseId: jobData.testCaseId });
   }
 
   // 4. 큐 통계 확인
-  console.log('\n4️⃣ Checking queue statistics...');
+  logger.info('Checking queue statistics');
   const stats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-  console.log('📊 Queue stats:', {
+  logger.info('Queue statistics', {
     waiting: stats.waiting,
     active: stats.active,
     completed: stats.completed,
@@ -74,31 +77,31 @@ async function basicUsageExample() {
   });
 
   // 5. 작업 상태 모니터링
-  console.log('\n5️⃣ Setting up job monitoring...');
+  logger.info('Setting up job monitoring');
   const queueEvents = queueManager.createQueueEvents(QueueNames.TEST_EXECUTION);
   
   queueEvents.on('waiting', ({ jobId }) => {
-    console.log(`⏳ Job ${jobId} is waiting in queue`);
+    logger.info('Job waiting in queue', { jobId });
   });
 
   queueEvents.on('active', ({ jobId }) => {
-    console.log(`🏃 Job ${jobId} started processing`);
+    logger.info('Job started processing', { jobId });
   });
 
   queueEvents.on('progress', ({ jobId, data }) => {
-    console.log(`📊 Job ${jobId} progress:`, data);
+    logger.info('Job progress', { jobId, data });
   });
 
   queueEvents.on('completed', ({ jobId, returnvalue }) => {
-    console.log(`✅ Job ${jobId} completed:`, returnvalue);
+    logger.info('Job completed', { jobId, returnvalue });
   });
 
   queueEvents.on('failed', ({ jobId, failedReason }) => {
-    console.error(`❌ Job ${jobId} failed:`, failedReason);
+    logger.error('Job failed', { jobId, failedReason });
   });
 
   // 6. 정리 (실제 사용에서는 이 부분을 제거하고 계속 실행)
-  console.log('\n6️⃣ Cleaning up for demo...');
+  logger.info('Cleaning up for demo');
   
   // 잠깐 대기 (실제 처리를 보기 위해)
   await new Promise(resolve => setTimeout(resolve, 5000));
@@ -106,20 +109,20 @@ async function basicUsageExample() {
   // 추가된 작업들 제거
   for (const job of jobs) {
     await job.remove();
-    console.log(`🗑️ Removed job ${job.id}`);
+    logger.info('Removed job', { jobId: job.id });
   }
 
   // 연결 종료
   await queueManager.close();
   await redisClient.disconnect();
   
-  console.log('\n🎉 Basic usage example completed!');
+  logger.info('Basic usage example completed!');
 }
 
 // 에러 핸들링과 함께 실행
 if (require.main === module) {
   basicUsageExample().catch(error => {
-    console.error('❌ Example failed:', error);
+    logger.error('Example failed', { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   });
 }

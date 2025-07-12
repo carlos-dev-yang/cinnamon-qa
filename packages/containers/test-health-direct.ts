@@ -1,7 +1,9 @@
 import { SimpleHealthChecker } from './src/health-checker';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testHealthDirect() {
-  console.log('🔍 Testing Health Check on Running Container...');
+  const logger = createLogger({ context: 'HealthDirectTest' });
+  logger.info('Starting health check test on running container');
   
   const healthChecker = new SimpleHealthChecker();
   
@@ -9,50 +11,53 @@ async function testHealthDirect() {
   const port = 3001;
   const containerName = 'cinnamon-qa-mcp-1';
   
-  console.log(`\n🔗 Testing ${containerName} on port ${port}...`);
+  logger.info('Testing container health', { containerName, port });
   
   // Test individual methods step by step
-  console.log('1. TCP Port Check...');
+  logger.info('Step 1: Starting TCP port check');
   const tcpResult = await healthChecker['checkTcpPort'](port);
-  console.log(`   TCP Check: ${tcpResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('TCP port check completed', { port, success: tcpResult });
   
   if (!tcpResult) {
-    console.log('❌ TCP check failed, stopping here');
+    logger.error('TCP check failed, stopping health test', { port });
     return;
   }
   
-  console.log('2. HTTP Endpoint Check...');
+  logger.info('Step 2: Starting HTTP endpoint check');
   const httpResult = await healthChecker['checkHttpEndpoint'](port);
-  console.log(`   HTTP Check: ${httpResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('HTTP endpoint check completed', { port, success: httpResult });
   
   if (!httpResult) {
-    console.log('❌ HTTP check failed, stopping here');
+    logger.error('HTTP check failed, stopping health test', { port });
     return;
   }
   
-  console.log('3. Container Status Check...');
+  logger.info('Step 3: Starting container status check');
   const containerResult = await healthChecker['checkContainerStatus'](containerName);
-  console.log(`   Container Check: ${containerResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('Container status check completed', { containerName, success: containerResult });
   
   if (!containerResult) {
-    console.log('❌ Container status check failed, stopping here');
+    logger.error('Container status check failed, stopping health test', { containerName });
     return;
   }
   
   // Test combined health check
-  console.log('4. Combined Health Check...');
+  logger.info('Step 4: Starting combined health check');
   const combinedResult = await healthChecker.isContainerReady(port, containerName);
-  console.log(`   Combined Check: ${combinedResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('Combined health check completed', { containerName, port, success: combinedResult });
   
   if (combinedResult) {
-    console.log('🎉 All health checks passed!');
+    logger.info('All health checks passed successfully');
   } else {
-    console.log('❌ Combined health check failed');
+    logger.error('Combined health check failed');
   }
   
   // Don't clean up - leave container for pool test
-  console.log('\n✅ Test complete - container left running for pool test');
+  logger.info('Health test completed - container left running for pool test');
 }
 
 // Run test
-testHealthDirect().catch(console.error);
+testHealthDirect().catch((error) => {
+  const logger = createLogger({ context: 'HealthDirectTest' });
+  logger.error('Health direct test execution failed', { error: error.message, stack: error.stack });
+});

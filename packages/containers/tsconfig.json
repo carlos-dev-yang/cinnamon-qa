@@ -7,6 +7,9 @@
       "path": "../queue"
     },
     {
+      "path": "../logger"
+    },
+    {
       "path": "./tsconfig.lib.json"
     }
   ]

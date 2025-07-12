@@ -1,7 +1,9 @@
 import { SimpleHealthChecker } from './src/health-checker';
+import { createLogger } from '@cinnamon-qa/logger';
 
 async function testHealthCheck() {
-  console.log('🔍 Testing Health Check Methods...');
+  const logger = createLogger({ context: 'HealthCheckTest' });
+  logger.info('Starting health check methods test');
   
   const healthChecker = new SimpleHealthChecker();
   
@@ -9,46 +11,60 @@ async function testHealthCheck() {
   const port = 3005;
   const containerId = 'test-mcp-health';
   
-  console.log(`\n🔗 Testing port ${port}...`);
+  logger.info('Testing container health check', { port, containerId });
   
   // Test individual methods
-  console.log('1. TCP Port Check...');
+  logger.info('Step 1: Starting TCP port check');
   const tcpResult = await healthChecker['checkTcpPort'](port);
-  console.log(`   TCP Check: ${tcpResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('TCP port check completed', { port, success: tcpResult });
   
-  console.log('2. HTTP Endpoint Check...');
+  logger.info('Step 2: Starting HTTP endpoint check');
   const httpResult = await healthChecker['checkHttpEndpoint'](port);
-  console.log(`   HTTP Check: ${httpResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('HTTP endpoint check completed', { port, success: httpResult });
   
-  console.log('3. Container Status Check...');
+  logger.info('Step 3: Starting container status check');
   const containerResult = await healthChecker['checkContainerStatus'](containerId);
-  console.log(`   Container Check: ${containerResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('Container status check completed', { containerId, success: containerResult });
   
   // Test combined health check
-  console.log('4. Combined Health Check...');
+  logger.info('Step 4: Starting combined health check');
   const combinedResult = await healthChecker.isContainerReady(port, containerId);
-  console.log(`   Combined Check: ${combinedResult ? '✅ Success' : '❌ Failed'}`);
+  logger.info('Combined health check completed', { port, containerId, success: combinedResult });
   
   // Test detailed health check
-  console.log('5. Detailed Health Check...');
+  logger.info('Step 5: Starting detailed health check');
   const detailedResult = await healthChecker.checkDetailedHealth(port, containerId);
-  console.log(`   Detailed Check: ${detailedResult.healthy ? '✅ Success' : '❌ Failed'}`);
+  logger.info('Detailed health check completed', {
+    port,
+    containerId,
+    healthy: detailedResult.healthy
+  });
   if (!detailedResult.healthy) {
-    console.log(`   Error: ${detailedResult.error}`);
+    logger.error('Detailed health check failed', {
+      port,
+      containerId,
+      error: detailedResult.error
+    });
   }
   
-  console.log('\n🧹 Cleaning up test container...');
+  logger.info('Starting test container cleanup');
   const { exec } = require('child_process');
   const { promisify } = require('util');
   const execAsync = promisify(exec);
   
   try {
     await execAsync('docker rm -f test-mcp-health');
-    console.log('✅ Test container removed');
+    logger.info('Test container removed successfully', { containerId });
   } catch (error) {
-    console.log('⚠️ Failed to remove test container:', error);
+    logger.warn('Failed to remove test container', {
+      containerId,
+      error: error.message
+    });
   }
 }
 
 // Run test
-testHealthCheck().catch(console.error);
+testHealthCheck().catch((error) => {
+  const logger = createLogger({ context: 'HealthCheckTest' });
+  logger.error('Health check test execution failed', { error: error.message, stack: error.stack });
+});
