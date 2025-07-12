@@ -5,8 +5,11 @@
  */
 
 import { TestJob, TestCase, TestRun } from '../types';
+import { createLogger } from '@cinnamon-qa/logger';
 
 export class TestProcessor {
+  private logger = createLogger({ context: 'TestProcessor' });
+
   constructor() {
     // TODO: Initialize dependencies
   }
@@ -14,9 +17,11 @@ export class TestProcessor {
   async processTestJob(jobData: TestJob): Promise<void> {
     const { testRunId, testCaseId } = jobData;
     
-    console.log(`📋 Processing test job: ${jobData.id}`);
-    console.log(`   Test Run ID: ${testRunId}`);
-    console.log(`   Test Case ID: ${testCaseId}`);
+    this.logger.info('Processing test job', { 
+      jobId: jobData.id, 
+      testRunId, 
+      testCaseId 
+    });
     
     try {
       // 1. Update test run status to 'running'
@@ -34,10 +39,15 @@ export class TestProcessor {
       // 5. Update test run status to 'completed'
       await this.updateTestRunStatus(testRunId, 'completed');
       
-      console.log(`✅ Test job completed: ${jobData.id}`);
+      this.logger.info('Test job completed', { jobId: jobData.id });
       
     } catch (error) {
-      console.error(`❌ Test job failed: ${jobData.id}`, error);
+      this.logger.error('Test job failed', {
+        jobId: jobData.id,
+        testRunId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       await this.updateTestRunStatus(testRunId, 'failed');
       throw error;
     }
@@ -45,12 +55,12 @@ export class TestProcessor {
 
   private async updateTestRunStatus(testRunId: string, status: TestRun['status']): Promise<void> {
     // TODO: Update test run status in database
-    console.log(`📊 Updating test run ${testRunId} status to: ${status}`);
+    this.logger.info('Updating test run status', { testRunId, status });
   }
 
   private async getTestCase(testCaseId: string): Promise<TestCase> {
     // TODO: Fetch test case from database
-    console.log(`📖 Fetching test case: ${testCaseId}`);
+    this.logger.info('Fetching test case', { testCaseId });
     
     // Placeholder return
     return {
@@ -63,7 +73,10 @@ export class TestProcessor {
 
   private async analyzeScenario(testCase: TestCase): Promise<TestCase['testSteps']> {
     // TODO: Use AI to analyze scenario and generate test steps
-    console.log(`🤖 Analyzing scenario for test case: ${testCase.id}`);
+    this.logger.info('Analyzing scenario for test case', { 
+      testCaseId: testCase.id, 
+      scenario: testCase.originalScenario 
+    });
     
     // Placeholder return
     return [
@@ -84,12 +97,21 @@ export class TestProcessor {
 
   private async executeTestSteps(testSteps: TestCase['testSteps'], testRunId: string): Promise<void> {
     // TODO: Execute test steps using Playwright MCP
-    console.log(`🎭 Executing ${testSteps?.length || 0} test steps for run: ${testRunId}`);
+    this.logger.info('Executing test steps', { 
+      testRunId, 
+      stepCount: testSteps?.length || 0 
+    });
     
     if (!testSteps) return;
     
     for (const step of testSteps) {
-      console.log(`  Step ${step.stepNumber}: ${step.action} ${step.selector || step.value || ''}`);
+      this.logger.info('Executing test step', {
+        testRunId,
+        stepNumber: step.stepNumber,
+        action: step.action,
+        selector: step.selector,
+        value: step.value
+      });
       
       // TODO: Execute individual step
       // TODO: Take screenshot/snapshot

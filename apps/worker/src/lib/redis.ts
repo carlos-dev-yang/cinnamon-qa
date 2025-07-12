@@ -14,19 +14,21 @@ import {
   type TestJobData, 
   type TestJobResult 
 } from '@cinnamon-qa/queue';
+import { createLogger } from '@cinnamon-qa/logger';
 
 export class WorkerRedisClient {
   private queueManager = getQueueManager();
   private redisClient = getRedisClient();
+  private logger = createLogger({ context: 'WorkerRedis' });
 
   async connect(): Promise<void> {
-    console.log('🔗 Connecting Worker to Redis...');
+    this.logger.info('Connecting Worker to Redis');
     await this.redisClient.connect();
-    console.log('✅ Worker Redis connection established');
+    this.logger.info('Worker Redis connection established');
   }
 
   async disconnect(): Promise<void> {
-    console.log('🔌 Disconnecting Worker from Redis...');
+    this.logger.info('Disconnecting Worker from Redis');
     await this.queueManager.close();
     await this.redisClient.disconnect();
   }
@@ -35,14 +37,14 @@ export class WorkerRedisClient {
    * Start processing test execution jobs
    */
   async startTestProcessor(): Promise<void> {
-    console.log('🚀 Starting test execution processor...');
+    this.logger.info('Starting test execution processor');
     
     const processor = new TestExecutionProcessor();
     
     const worker = this.queueManager.createWorker(
       QueueNames.TEST_EXECUTION,
       async (job) => {
-        console.log(`📋 Processing test job ${job.id}:`, job.data);
+        this.logger.info('Processing test job', { jobId: job.id, jobData: job.data });
         return await processor.process(job);
       },
       {
@@ -55,21 +57,21 @@ export class WorkerRedisClient {
     // Setup queue events monitoring
     const queueEvents = this.queueManager.createQueueEvents(QueueNames.TEST_EXECUTION);
     
-    console.log('✅ Test execution processor started');
+    this.logger.info('Test execution processor started');
   }
 
   /**
    * Start processing cleanup jobs
    */
   async startCleanupProcessor(): Promise<void> {
-    console.log('🧹 Starting cleanup processor...');
+    this.logger.info('Starting cleanup processor');
     
     const processor = JobProcessorFactory.createProcessor('cleanup');
     
     const worker = this.queueManager.createWorker(
       QueueNames.CLEANUP,
       async (job) => {
-        console.log(`🗑️ Processing cleanup job ${job.id}`);
+        this.logger.info('Processing cleanup job', { jobId: job.id });
         return await processor.process(job);
       },
       {
@@ -79,7 +81,7 @@ export class WorkerRedisClient {
       }
     );
 
-    console.log('✅ Cleanup processor started');
+    this.logger.info('Cleanup processor started');
   }
 
   /**
@@ -89,7 +91,10 @@ export class WorkerRedisClient {
     try {
       return await this.redisClient.healthCheck();
     } catch (error) {
-      console.error('Worker Redis health check failed:', error);
+      this.logger.error('Worker Redis health check failed', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return false;
     }
   }

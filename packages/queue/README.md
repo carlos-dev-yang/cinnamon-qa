@@ -8,8 +8,9 @@ Redis와 BullMQ를 사용한 백그라운드 작업 큐 시스템입니다.
 2. [Redis 설정](#redis-설정)
 3. [큐 구조](#큐-구조)
 4. [사용법](#사용법)
-5. [모니터링](#모니터링)
-6. [트러블슈팅](#트러블슈팅)
+5. [로깅](#로깅)
+6. [모니터링](#모니터링)
+7. [트러블슈팅](#트러블슈팅)
 
 ---
 
@@ -246,6 +247,138 @@ class CustomTestProcessor extends BaseJobProcessor {
 
 ---
 
+## 📋 로깅
+
+이 패키지는 `@cinnamon-qa/logger`를 사용하여 구조화된 로깅을 제공합니다.
+
+### 로깅 구성
+
+각 모듈은 고유한 컨텍스트를 가진 로거를 사용합니다:
+
+```typescript
+import { createLogger } from '@cinnamon-qa/logger';
+
+// Redis 클라이언트 로거
+const logger = createLogger({ context: 'RedisClient' });
+
+// Queue 관리자 로거  
+const logger = createLogger({ context: 'QueueManager' });
+
+// Job 프로세서 로거
+const logger = createLogger({ context: 'JobProcessor' });
+```
+
+### 로그 이벤트
+
+#### Redis 연결 로그
+```typescript
+// 연결 성공
+logger.info('Redis connected');
+
+// 연결 실패
+logger.error('Redis connection error', { 
+  error: error.message, 
+  stack: error.stack 
+});
+
+// 헬스체크 결과
+logger.info('Redis health check', { healthy: true });
+```
+
+#### Queue 이벤트 로그
+```typescript
+// Job 추가
+logger.info('Job added to queue', { 
+  jobId: job.id, 
+  queueName: 'test-execution',
+  priority: JobPriority.HIGH 
+});
+
+// Worker 이벤트
+logger.info('Job processing started', { 
+  jobId: job.id,
+  testCaseId: job.data.testCaseId 
+});
+
+logger.info('Job completed', { 
+  jobId: job.id,
+  duration: 5000,
+  result: 'success' 
+});
+```
+
+#### Job 진행률 로그
+```typescript
+// 진행률 업데이트
+logger.info('Job progress updated', {
+  jobId: job.id,
+  progress: 50,
+  currentStep: 3,
+  totalSteps: 6,
+  message: 'Processing data...'
+});
+```
+
+#### 에러 로그
+```typescript
+// Job 실패
+logger.error('Job processing failed', {
+  jobId: job.id,
+  testCaseId: job.data.testCaseId,
+  error: error.message,
+  stack: error.stack,
+  attemptsMade: job.attemptsMade
+});
+
+// Worker 에러
+logger.error('Worker error', {
+  workerName: 'test-execution-worker',
+  error: error.message,
+  jobId: job?.id
+});
+```
+
+### 구조화된 로그 데이터
+
+모든 로그는 구조화된 데이터와 함께 기록됩니다:
+
+```typescript
+// 큐 통계 로그
+logger.info('Queue statistics', {
+  queueName: 'test-execution',
+  waiting: 5,
+  active: 2,
+  completed: 100,
+  failed: 3,
+  delayed: 1
+});
+
+// Redis 서버 정보
+logger.info('Redis server info', {
+  version: '7.0.0',
+  memory: '2.5M',
+  connectedClients: 3,
+  uptime: 86400
+});
+```
+
+### 테스트 파일에서의 로깅
+
+JavaScript 테스트 파일에서도 동일한 로거를 사용합니다:
+
+```javascript
+const { createLogger } = require('@cinnamon-qa/logger');
+
+const logger = createLogger({ context: 'QueueTestJS' });
+
+// 테스트 진행 상황
+logger.info('Queue test started');
+logger.info('Job added successfully', { jobId: job.id });
+logger.info('All tests completed successfully');
+```
+
+---
+
 ## 📊 모니터링
 
 ### 큐 통계 확인
@@ -275,19 +408,19 @@ console.log('Queue Statistics:', {
 const queueEvents = queueManager.createQueueEvents(QueueNames.TEST_EXECUTION);
 
 queueEvents.on('waiting', ({ jobId }) => {
-  console.log(`Job ${jobId} is waiting`);
+  logger.info('Job waiting', { jobId });
 });
 
 queueEvents.on('active', ({ jobId }) => {
-  console.log(`Job ${jobId} started`);
+  logger.info('Job started', { jobId });
 });
 
 queueEvents.on('completed', ({ jobId, returnvalue }) => {
-  console.log(`Job ${jobId} completed:`, returnvalue);
+  logger.info('Job completed', { jobId, result: returnvalue });
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error(`Job ${jobId} failed:`, failedReason);
+  logger.error('Job failed', { jobId, reason: failedReason });
 });
 ```
 
@@ -387,15 +520,15 @@ const queueManager = getQueueManager({
 // Redis 연결 상태 확인
 const redisClient = getRedisClient();
 const isHealthy = await redisClient.healthCheck();
-console.log('Redis Health:', isHealthy);
+logger.info('Redis health check', { healthy: isHealthy });
 
 // Redis 정보 확인
 const info = await redisClient.info();
-console.log('Redis Info:', info);
+logger.info('Redis server info', { info });
 
 // 큐 통계 확인
 const stats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-console.log('Queue Stats:', stats);
+logger.info('Queue statistics', { queueName: QueueNames.TEST_EXECUTION, stats });
 ```
 
 ### 로그 설정
@@ -418,4 +551,5 @@ DEBUG=bull* npm run dev
 ## 🔄 업데이트 로그
 
 - **v1.0.0**: 초기 구현 (Redis + BullMQ)
+- **v1.1.0**: 구조화된 로깅 시스템 추가 (@cinnamon-qa/logger 통합)
 - 향후 계획: 메트릭 수집, 대시보드, 클러스터링 지원

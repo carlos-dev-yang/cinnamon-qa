@@ -10,7 +10,19 @@
       "path": "./apps/api-server"
     },
     {
-      "path": "./worker"
+      "path": "./packages/containers"
+    },
+    {
+      "path": "./packages/logger"
+    },
+    {
+      "path": "./apps/worker"
+    },
+    {
+      "path": "./packages/queue"
+    },
+    {
+      "path": "./packages/database"
     }
   ]
 }

@@ -3,7 +3,10 @@
  */
 
 import type { Job } from 'bullmq';
+import { createLogger } from '@cinnamon-qa/logger';
 import type { TestJobData, TestJobResult, JobProgress } from './types';
+
+const logger = createLogger({ context: 'JobProcessor' });
 
 /**
  * Abstract base class for job processors
@@ -19,7 +22,7 @@ export abstract class BaseJobProcessor {
   }
 
   protected handleError(error: Error, context: string): TestJobResult {
-    console.error(`Error in ${context}:`, error);
+    logger.error('Job processing error', { context, error: error.message, stack: error.stack });
     
     return {
       testRunId: '',
@@ -42,7 +45,7 @@ export class TestExecutionProcessor extends BaseJobProcessor {
     const { testCaseId, testRunId, config } = job.data;
     
     try {
-      console.log(`🏃 Starting test execution for case ${testCaseId}, run ${testRunId}`);
+      logger.info('Starting test execution', { testCaseId, testRunId });
       
       // Update initial progress
       await this.updateProgress(job, {
@@ -72,7 +75,7 @@ export class TestExecutionProcessor extends BaseJobProcessor {
         duration: 1000,
       };
 
-      console.log(`✅ Test execution completed for run ${testRunId}`);
+      logger.info('Test execution completed', { testRunId, result });
       return result;
       
     } catch (error) {
@@ -87,7 +90,7 @@ export class TestExecutionProcessor extends BaseJobProcessor {
 export class CleanupJobProcessor extends BaseJobProcessor {
   async process(job: Job<TestJobData, TestJobResult>): Promise<TestJobResult> {
     try {
-      console.log('🧹 Starting cleanup job');
+      logger.info('Starting cleanup job');
       
       // TODO: Implement cleanup logic
       // This will involve:
@@ -106,7 +109,7 @@ export class CleanupJobProcessor extends BaseJobProcessor {
         duration: 500,
       };
 
-      console.log('✅ Cleanup job completed');
+      logger.info('Cleanup job completed', { result });
       return result;
       
     } catch (error) {
@@ -123,7 +126,7 @@ export class AdaptationLearningProcessor extends BaseJobProcessor {
     const { testCaseId } = job.data;
     
     try {
-      console.log(`🧠 Starting adaptation learning for case ${testCaseId}`);
+      logger.info('Starting adaptation learning', { testCaseId });
       
       // TODO: Implement adaptation learning logic
       // This will involve:
@@ -142,7 +145,7 @@ export class AdaptationLearningProcessor extends BaseJobProcessor {
         duration: 2000,
       };
 
-      console.log(`✅ Adaptation learning completed for case ${testCaseId}`);
+      logger.info('Adaptation learning completed', { testCaseId, result });
       return result;
       
     } catch (error) {

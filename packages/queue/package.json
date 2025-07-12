@@ -10,6 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@cinnamon-qa/logger": "^0.0.1",
     "bullmq": "^5.34.5",
     "ioredis": "^5.4.1"
   },

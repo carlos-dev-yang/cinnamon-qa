@@ -4,18 +4,21 @@ import * as path from 'path';
 // Load environment variables from root .env file
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
+import { createLogger } from '@cinnamon-qa/logger';
 import { db } from './src/client';
 import { TestCaseRepository } from './src/repositories/testCase.repository';
 import { TestRunRepository } from './src/repositories/testRun.repository';
 import { TestStepRepository } from './src/repositories/testStep.repository';
 
+const logger = createLogger({ context: 'DatabaseTest' });
+
 async function testDatabaseConnection() {
-  console.log('🔍 Testing database connection...');
+  logger.info('Testing database connection...');
   
   try {
     // Test basic connection
     const isHealthy = await db.healthCheck();
-    console.log('✅ Database connection:', isHealthy ? 'Healthy' : 'Failed');
+    logger.info('Database connection status', { healthy: isHealthy });
     
     if (!isHealthy) {
       throw new Error('Database connection failed');
@@ -27,26 +30,26 @@ async function testDatabaseConnection() {
     const testStepRepo = new TestStepRepository(db);
     
     // Create a test case
-    console.log('\n📝 Creating test case...');
+    logger.info('Creating test case...');
     const testCase = await testCaseRepo.create({
       name: 'Test Database Connection',
       url: 'https://example.com',
       original_scenario: 'Navigate to example.com and verify page loads',
       tags: ['test', 'connection'],
     });
-    console.log('✅ Test case created:', testCase.id);
+    logger.info('Test case created', { id: testCase.id });
     
     // Create a test run
-    console.log('\n🏃 Creating test run...');
+    logger.info('Creating test run...');
     const testRun = await testRunRepo.create({
       test_case_id: testCase.id,
       status: 'running',
       started_at: new Date().toISOString(),
     });
-    console.log('✅ Test run created:', testRun.id);
+    logger.info('Test run created', { id: testRun.id });
     
     // Create a test step
-    console.log('\n👟 Creating test step...');
+    logger.info('Creating test step...');
     const testStep = await testStepRepo.create({
       test_run_id: testRun.id,
       step_number: 1,
@@ -57,34 +60,32 @@ async function testDatabaseConnection() {
       completed_at: new Date().toISOString(),
       duration_ms: 1500,
     });
-    console.log('✅ Test step created:', testStep.id);
+    logger.info('Test step created', { id: testStep.id });
     
     // Update test run
-    console.log('\n📊 Updating test run...');
+    logger.info('Updating test run...');
     await testRunRepo.update(testRun.id, {
       status: 'completed',
       completed_at: new Date().toISOString(),
       total_steps: 1,
       completed_steps: 1,
     });
-    console.log('✅ Test run updated');
+    logger.info('Test run updated successfully');
     
     // Fetch test case with runs
-    console.log('\n🔍 Fetching test case with runs...');
+    logger.info('Fetching test case with runs...');
     const testCaseWithRuns = await testCaseRepo.findByIdWithRuns(testCase.id);
-    console.log('✅ Test case fetched:');
-    console.log('  - Name:', testCaseWithRuns?.name);
-    console.log('  - Runs:', testCaseWithRuns?.test_runs?.length);
+    logger.info('Test case fetched', { name: testCaseWithRuns?.name, runsCount: testCaseWithRuns?.test_runs?.length });
     
     // Clean up
-    console.log('\n🧹 Cleaning up test data...');
+    logger.info('Cleaning up test data...');
     await testCaseRepo.delete(testCase.id);
-    console.log('✅ Test data cleaned up');
+    logger.info('Test data cleaned up successfully');
     
-    console.log('\n🎉 All tests passed! Database connection and repositories are working correctly.');
+    logger.info('All tests passed! Database connection and repositories are working correctly.');
     
   } catch (error) {
-    console.error('❌ Test failed:', error);
+    logger.error('Test failed', { error });
     process.exit(1);
   }
 }
