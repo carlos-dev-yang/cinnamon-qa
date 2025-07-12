@@ -3,6 +3,7 @@ import { PlaywrightMcpContainer } from './container';
 import { SimpleHealthChecker } from './health-checker';
 import { DockerInspector } from './docker-inspector';
 import { AllocationQueue, QueuedRequest } from './allocation-queue';
+import { HealthMonitor, ContainerHealthStatus } from './health-monitor';
 import { Container, ContainerState, ContainerPoolConfig } from './types';
 
 export interface PoolMetrics {
@@ -22,6 +23,7 @@ export class ContainerPoolManager {
   private dockerInspector: DockerInspector;
   private redisClient: RedisClient;
   private allocationQueue: AllocationQueue;
+  private healthMonitor: HealthMonitor;
   
   // Metrics
   private metrics: PoolMetrics = {
@@ -48,6 +50,53 @@ export class ContainerPoolManager {
     this.healthChecker = new SimpleHealthChecker();
     this.dockerInspector = new DockerInspector();
     this.allocationQueue = new AllocationQueue(redisClient);
+    this.healthMonitor = new HealthMonitor(redisClient);
+    
+    // Setup health monitor event listeners
+    this.setupHealthMonitorEvents();
+  }
+
+  /**
+   * Setup health monitor event listeners
+   */
+  private setupHealthMonitorEvents(): void {
+    this.healthMonitor.on('containerUnhealthy', async (event) => {
+      console.log(`Container ${event.containerId} marked as unhealthy (${event.consecutiveFailures} failures)`);
+      await this.handleUnhealthyContainer(event.containerId);
+    });
+
+    this.healthMonitor.on('memoryThresholdExceeded', (event) => {
+      console.warn(`Container ${event.containerId} exceeded memory threshold: ${event.memoryUsage}MB > ${event.threshold}MB`);
+    });
+
+    this.healthMonitor.on('cpuThresholdExceeded', (event) => {
+      console.warn(`Container ${event.containerId} exceeded CPU threshold: ${event.cpuUsage}% > ${event.threshold}%`);
+    });
+
+    this.healthMonitor.on('statusChanged', (event) => {
+      console.log(`Container ${event.containerId} status changed: ${event.previousStatus} → ${event.newStatus}`);
+    });
+  }
+
+  /**
+   * Handle unhealthy container
+   */
+  private async handleUnhealthyContainer(containerId: string): Promise<void> {
+    const container = this.containers.get(containerId);
+    if (!container) return;
+
+    try {
+      console.log(`Attempting to restart unhealthy container ${containerId}`);
+      await container.restart();
+      
+      // Re-register with health monitor after restart
+      this.healthMonitor.registerContainer(containerId, container.name, container.port);
+      
+      console.log(`Container ${containerId} restarted successfully`);
+    } catch (error) {
+      console.error(`Failed to restart container ${containerId}:`, error);
+      // In a production environment, this might trigger an alert or mark for replacement
+    }
   }
 
   /**
@@ -79,6 +128,9 @@ export class ContainerPoolManager {
           lastCheckedAt: new Date(),
         });
         
+        // Register with health monitor
+        this.healthMonitor.registerContainer(config.id, config.name, config.port);
+        
         console.log(`Container ${config.id} started successfully on port ${config.port}`);
       } catch (error) {
         console.error(`Failed to start container ${config.id}:`, error);
@@ -86,9 +138,12 @@ export class ContainerPoolManager {
       }
     }
 
+    // Start health monitoring
+    this.healthMonitor.startMonitoring();
+    
     // Update metrics
     await this.updateMetrics();
-    console.log('Container pool manager initialized');
+    console.log('Container pool manager initialized with health monitoring');
   }
 
   /**
@@ -271,8 +326,14 @@ export class ContainerPoolManager {
   async shutdown(): Promise<void> {
     console.log('Shutting down container pool manager...');
     
+    // Stop health monitoring
+    this.healthMonitor.stopMonitoring();
+    
     for (const container of this.containers.values()) {
       try {
+        // Unregister from health monitor
+        this.healthMonitor.unregisterContainer(container.id);
+        
         await container.stop();
         await container.remove();
       } catch (error) {
