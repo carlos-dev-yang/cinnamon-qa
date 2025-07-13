@@ -160,8 +160,64 @@
           2,
           3
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup Fastify Server with tRPC Integration",
+            "description": "Initialize Fastify server and configure tRPC adapter with basic middleware setup",
+            "dependencies": [],
+            "details": "Install required dependencies (@trpc/server, @trpc/fastify-adapter, fastify). Create main server file with Fastify instance. Configure tRPC Fastify adapter with context creation function. Setup basic middleware for logging, CORS (fastify-cors), and request parsing. Configure server to listen on specified port with proper error handling.",
+            "status": "pending",
+            "testStrategy": "Test server startup, basic health endpoint, and tRPC adapter initialization"
+          },
+          {
+            "id": 2,
+            "title": "Implement Test Case Router",
+            "description": "Create tRPC router for test case management with all CRUD operations",
+            "dependencies": [
+              1
+            ],
+            "details": "Create testCase router with procedures: create (input validation for test case data), list (with optional filtering), get (by ID), duplicate (clone existing test case), and getAdaptationPatterns (retrieve available patterns). Implement input/output schemas using Zod for type safety. Add proper error handling for not found cases and validation errors.",
+            "status": "pending",
+            "testStrategy": "Unit tests for each procedure with mock data, integration tests for database operations"
+          },
+          {
+            "id": 3,
+            "title": "Implement Test Run Router with SSE Support",
+            "description": "Create test run router with real-time updates via Server-Sent Events",
+            "dependencies": [
+              1
+            ],
+            "details": "Create testRun router with procedures: create (initiate test run), get (retrieve run details), subscribe (SSE endpoint for real-time updates), getAdaptationHistory (historical adaptation data), and getContainerStatus (current container state). Implement SSE using Fastify's reply.raw for streaming. Setup event emitter for broadcasting run updates. Add proper cleanup for SSE connections.",
+            "status": "pending",
+            "testStrategy": "Test SSE connection establishment, event broadcasting, and proper connection cleanup"
+          },
+          {
+            "id": 4,
+            "title": "Implement Test Step and Container Management Routers",
+            "description": "Create routers for test step operations and container lifecycle management",
+            "dependencies": [
+              1
+            ],
+            "details": "Create testStep router with procedures: list (get steps for a test run), getPageState (current page DOM state), and getAdaptations (applied adaptations for step). Create container router for Docker operations: start, stop, restart, logs, and status endpoints. Implement proper error handling for container operations and step data retrieval. Add input validation for container commands.",
+            "status": "pending",
+            "testStrategy": "Mock container operations for testing, validate step data retrieval and page state capture"
+          },
+          {
+            "id": 5,
+            "title": "Configure Error Handling and Request Validation",
+            "description": "Implement comprehensive error handling, request validation, and finalize server configuration",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Setup global error handler for tRPC procedures with proper HTTP status codes. Implement request validation middleware using Zod schemas. Configure CORS with appropriate origins and methods. Add request logging and rate limiting. Setup graceful shutdown handling. Merge all routers into main tRPC router and register with Fastify. Add health check endpoint and API documentation setup.",
+            "status": "pending",
+            "testStrategy": "Test error scenarios, CORS functionality, rate limiting, and overall API integration"
+          }
+        ]
       },
       {
         "id": 5,
@@ -327,7 +383,7 @@
     ],
     "metadata": {
       "created": "2025-07-06T09:22:07.785Z",
-      "updated": "2025-07-12T14:37:36.404Z",
+      "updated": "2025-07-13T04:33:10.011Z",
       "description": "Tasks for master context"
     }
   }
