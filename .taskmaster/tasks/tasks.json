@@ -160,7 +160,7 @@
           2,
           3
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -168,7 +168,7 @@
             "description": "Initialize Fastify server and configure tRPC adapter with basic middleware setup",
             "dependencies": [],
             "details": "Install required dependencies (@trpc/server, @trpc/fastify-adapter, fastify). Create main server file with Fastify instance. Configure tRPC Fastify adapter with context creation function. Setup basic middleware for logging, CORS (fastify-cors), and request parsing. Configure server to listen on specified port with proper error handling.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test server startup, basic health endpoint, and tRPC adapter initialization"
           },
           {
@@ -179,7 +179,7 @@
               1
             ],
             "details": "Create testCase router with procedures: create (input validation for test case data), list (with optional filtering), get (by ID), duplicate (clone existing test case), and getAdaptationPatterns (retrieve available patterns). Implement input/output schemas using Zod for type safety. Add proper error handling for not found cases and validation errors.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for each procedure with mock data, integration tests for database operations"
           },
           {
@@ -190,7 +190,7 @@
               1
             ],
             "details": "Create testRun router with procedures: create (initiate test run), get (retrieve run details), subscribe (SSE endpoint for real-time updates), getAdaptationHistory (historical adaptation data), and getContainerStatus (current container state). Implement SSE using Fastify's reply.raw for streaming. Setup event emitter for broadcasting run updates. Add proper cleanup for SSE connections.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test SSE connection establishment, event broadcasting, and proper connection cleanup"
           },
           {
@@ -201,7 +201,7 @@
               1
             ],
             "details": "Create testStep router with procedures: list (get steps for a test run), getPageState (current page DOM state), and getAdaptations (applied adaptations for step). Create container router for Docker operations: start, stop, restart, logs, and status endpoints. Implement proper error handling for container operations and step data retrieval. Add input validation for container commands.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Mock container operations for testing, validate step data retrieval and page state capture"
           },
           {
@@ -214,7 +214,7 @@
               4
             ],
             "details": "Setup global error handler for tRPC procedures with proper HTTP status codes. Implement request validation middleware using Zod schemas. Configure CORS with appropriate origins and methods. Add request logging and rate limiting. Setup graceful shutdown handling. Merge all routers into main tRPC router and register with Fastify. Add health check endpoint and API documentation setup.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test error scenarios, CORS functionality, rate limiting, and overall API integration"
           }
         ]
@@ -230,7 +230,61 @@
           4
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup Google Gemini API Client and Authentication",
+            "description": "Configure Google Gemini API client with proper authentication, API key management, and connection handling",
+            "dependencies": [],
+            "details": "Install Google AI SDK, create API key configuration management, implement secure credential storage, setup client initialization with error handling and retry logic, create connection validation functions",
+            "status": "pending",
+            "testStrategy": "Unit tests for client initialization, authentication validation, and connection error handling scenarios"
+          },
+          {
+            "id": 2,
+            "title": "Implement Natural Language Scenario Analysis Engine",
+            "description": "Create functions to parse natural language test scenarios and convert them into structured test steps using Gemini AI",
+            "dependencies": [
+              1
+            ],
+            "details": "Design prompt templates for scenario analysis, implement text preprocessing functions, create structured output parsers for test steps, add validation for parsed scenarios, implement error handling for malformed inputs",
+            "status": "pending",
+            "testStrategy": "Integration tests with sample natural language scenarios, validation of structured output format, edge case testing for ambiguous inputs"
+          },
+          {
+            "id": 3,
+            "title": "Build Confidence Scoring and Validation System",
+            "description": "Implement confidence scoring mechanism for AI-generated test steps and pre-execution validation logic",
+            "dependencies": [
+              2
+            ],
+            "details": "Create confidence scoring algorithms based on AI response certainty, implement validation rules for test step feasibility, add threshold-based decision making, create validation feedback mechanisms, implement step modification suggestions",
+            "status": "pending",
+            "testStrategy": "Unit tests for scoring algorithms, validation rule testing, threshold boundary testing, feedback mechanism verification"
+          },
+          {
+            "id": 4,
+            "title": "Create Adaptive Execution Logic with AI Validation",
+            "description": "Implement adaptive test execution engine that validates each step with AI before execution and handles dynamic adjustments",
+            "dependencies": [
+              3
+            ],
+            "details": "Build execution pipeline with pre-step AI validation, implement dynamic step modification based on context, create execution state management, add real-time adaptation logic, implement rollback mechanisms for failed adaptations",
+            "status": "pending",
+            "testStrategy": "Integration tests for execution pipeline, validation of adaptive behavior, rollback mechanism testing, state management verification"
+          },
+          {
+            "id": 5,
+            "title": "Implement Feedback Loop and Learning System",
+            "description": "Create feedback collection system that learns from successful test patterns and improves future scenario analysis and execution",
+            "dependencies": [
+              4
+            ],
+            "details": "Design feedback data collection mechanisms, implement pattern recognition for successful executions, create learning database for storing successful patterns, build recommendation engine for future scenarios, add adaptation reasoning explanations",
+            "status": "pending",
+            "testStrategy": "End-to-end testing of feedback collection, pattern recognition validation, learning system effectiveness testing, recommendation accuracy verification"
+          }
+        ]
       },
       {
         "id": 6,
@@ -383,7 +437,7 @@
     ],
     "metadata": {
       "created": "2025-07-06T09:22:07.785Z",
-      "updated": "2025-07-13T04:33:10.011Z",
+      "updated": "2025-07-13T04:45:20.450Z",
       "description": "Tasks for master context"
     }
   }
