@@ -3,6 +3,7 @@ import { router, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { getGeminiClient } from '../../ai';
 import { PromptCategory } from '../../ai/gemini/types';
+import { getScenarioAnalyzer } from '../../ai/services/scenario-analyzer';
 
 export const aiRouter = router({
   // Test connection to Gemini API
@@ -123,6 +124,37 @@ export const aiRouter = router({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to initialize client: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      }
+    }),
+
+  // Analyze natural language scenario into structured test steps
+  analyzeScenario: publicProcedure
+    .input(z.object({
+      scenario: z.string().min(5, 'Scenario must be at least 5 characters long'),
+      url: z.string().url('Must provide a valid URL'),
+      complexity: z.enum(['simple', 'medium', 'complex']).optional(),
+      retryOnFailure: z.boolean().default(true),
+      fallbackOnError: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const analyzer = getScenarioAnalyzer();
+        
+        const result = await analyzer.analyzeScenario({
+          scenario: input.scenario,
+          url: input.url,
+          complexity: input.complexity,
+          retryOnFailure: input.retryOnFailure,
+          fallbackOnError: input.fallbackOnError,
+        });
+        
+        return result;
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to analyze scenario: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          cause: error,
         });
       }
     }),

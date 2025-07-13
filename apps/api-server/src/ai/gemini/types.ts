@@ -19,7 +19,7 @@ export class GeminiError extends Error {
   constructor(
     message: string,
     public code?: string,
-    public statusCode?: number,
+    public context?: any,
     public details?: unknown
   ) {
     super(message);

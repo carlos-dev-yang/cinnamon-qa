@@ -3,6 +3,11 @@ export { GeminiClient, getGeminiClient } from './gemini/client';
 export { loadGeminiConfig, GeminiConfigSchema } from './gemini/config';
 export * from './gemini/types';
 
+// Export scenario analysis
+export { ScenarioAnalyzer, getScenarioAnalyzer } from './services/scenario-analyzer';
+export { ScenarioParser, PartialResultRecovery } from './parsers/scenario-parser';
+export * from './prompts/scenario-analysis';
+
 // Export AI types
 export * from './types';
 
@@ -29,3 +34,14 @@ export type {
   OverallAnalysis,
   PromptContext,
 } from './types';
+
+export type {
+  TestStep,
+  AnalysisMetadata,
+  AnalysisResult as ScenarioAnalysisResult,
+} from './parsers/scenario-parser';
+
+export type {
+  AnalyzeScenarioRequest,
+  AnalyzeScenarioResponse,
+} from './services/scenario-analyzer';
