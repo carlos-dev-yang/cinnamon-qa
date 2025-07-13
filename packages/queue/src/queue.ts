@@ -3,6 +3,7 @@
  */
 
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
+import { createLogger } from '@cinnamon-qa/logger';
 import type { 
   QueueConfig, 
   TestJobData, 
@@ -11,6 +12,8 @@ import type {
 } from './types';
 import { QueueNames, JobPriority } from './types';
 import { getRedisClient } from './redis';
+
+const logger = createLogger({ context: 'QueueManager' });
 
 export class QueueManager {
   private queues: Map<string, Queue> = new Map();
@@ -107,19 +110,23 @@ export class QueueManager {
 
     // Worker event handlers
     worker.on('completed', (job, result) => {
-      console.log(`✅ Job ${job.id} completed:`, result);
+      logger.info('Job completed', { jobId: job.id, result });
     });
 
     worker.on('failed', (job, err) => {
-      console.error(`❌ Job ${job?.id} failed:`, err);
+      logger.error('Job failed', { 
+        jobId: job?.id, 
+        error: err.message, 
+        stack: err.stack 
+      });
     });
 
     worker.on('progress', (job, progress) => {
-      console.log(`📊 Job ${job.id} progress:`, progress);
+      logger.info('Job progress update', { jobId: job.id, progress });
     });
 
     worker.on('stalled', (jobId) => {
-      console.warn(`⚠️ Job ${jobId} stalled`);
+      logger.warn('Job stalled', { jobId });
     });
 
     this.workers.set(queueName, worker);
@@ -140,19 +147,19 @@ export class QueueManager {
 
     // Queue event handlers
     queueEvents.on('waiting', ({ jobId }) => {
-      console.log(`⏳ Job ${jobId} is waiting`);
+      logger.info('Job waiting', { jobId });
     });
 
     queueEvents.on('active', ({ jobId }) => {
-      console.log(`🏃 Job ${jobId} is active`);
+      logger.info('Job active', { jobId });
     });
 
     queueEvents.on('completed', ({ jobId, returnvalue }) => {
-      console.log(`✅ Job ${jobId} completed with result:`, returnvalue);
+      logger.info('Job completed', { jobId, returnvalue });
     });
 
     queueEvents.on('failed', ({ jobId, failedReason }) => {
-      console.error(`❌ Job ${jobId} failed:`, failedReason);
+      logger.error('Job failed', { jobId, failedReason });
     });
 
     this.queueEvents.set(queueName, queueEvents);

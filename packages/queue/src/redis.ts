@@ -3,7 +3,10 @@
  */
 
 import Redis from 'ioredis';
+import { createLogger } from '@cinnamon-qa/logger';
 import type { RedisConfig } from './types';
+
+const logger = createLogger({ context: 'RedisClient' });
 
 export class RedisClient {
   private client: Redis | null = null;
@@ -34,15 +37,15 @@ export class RedisClient {
 
     // Handle connection events
     this.client.on('connect', () => {
-      console.log('✅ Redis connected');
+      logger.info('Redis connected');
     });
 
     this.client.on('error', (error) => {
-      console.error('❌ Redis connection error:', error);
+      logger.error('Redis connection error', { error: error.message, stack: error.stack });
     });
 
     this.client.on('close', () => {
-      console.log('🔌 Redis connection closed');
+      logger.info('Redis connection closed');
     });
 
     // Wait for connection
@@ -71,7 +74,7 @@ export class RedisClient {
       await this.client.ping();
       return true;
     } catch (error) {
-      console.error('Redis health check failed:', error);
+      logger.error('Redis health check failed', { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }

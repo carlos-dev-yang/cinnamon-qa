@@ -6,6 +6,7 @@
 
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { createLogger } from '@cinnamon-qa/logger';
 import { DatabaseClient, createClientForApp } from '../client';
 import { DatabaseError } from '../types';
 
@@ -19,6 +20,7 @@ interface Migration {
 export class MigrationManager {
   private client: DatabaseClient;
   private migrationsPath: string;
+  private logger = createLogger({ context: 'MigrationManager' });
 
   constructor(client?: DatabaseClient) {
     this.client = client || createClientForApp('api-server');
@@ -45,10 +47,10 @@ export class MigrationManager {
         );
       `;
       
-      console.log('Creating migration table manually...');
+      this.logger.info('Creating migration table manually');
       // For now, just log the SQL - in a real implementation, 
       // you'd execute this via Supabase SQL editor or CLI
-      console.log(createTableSQL);
+      this.logger.info('Migration table SQL', { sql: createTableSQL });
     }
   }
 
@@ -73,7 +75,7 @@ export class MigrationManager {
         };
       });
     } catch (error) {
-      console.warn('No migration files found or error reading migrations:', error);
+      this.logger.warn('No migration files found or error reading migrations', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }
@@ -88,13 +90,13 @@ export class MigrationManager {
         .select('id');
 
       if (error) {
-        console.warn('Migration table not found, assuming no migrations executed');
+        this.logger.warn('Migration table not found, assuming no migrations executed');
         return [];
       }
 
       return data.map(row => row.id);
     } catch (error) {
-      console.warn('Error fetching executed migrations:', error);
+      this.logger.warn('Error fetching executed migrations', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }
@@ -103,7 +105,7 @@ export class MigrationManager {
    * Run pending migrations
    */
   async migrate(): Promise<{ executed: string[]; skipped: string[] }> {
-    console.log('🚀 Starting database migration...');
+    this.logger.info('Starting database migration');
     
     await this.initialize();
     
@@ -115,7 +117,7 @@ export class MigrationManager {
     );
 
     if (pendingMigrations.length === 0) {
-      console.log('✅ No pending migrations');
+      this.logger.info('No pending migrations');
       return { executed: [], skipped: executedMigrations };
     }
 
@@ -123,11 +125,11 @@ export class MigrationManager {
 
     for (const migration of pendingMigrations) {
       try {
-        console.log(`📄 Executing migration: ${migration.id} - ${migration.name}`);
+        this.logger.info('Executing migration', { id: migration.id, name: migration.name });
         
         // Execute the migration SQL
         // Note: In a real implementation, you'd execute this via Supabase
-        console.log(`SQL to execute:\n${migration.sql}`);
+        this.logger.info('Migration SQL to execute', { id: migration.id, sql: migration.sql });
         
         // Record the migration as executed
         const { error } = await this.client.client
@@ -142,15 +144,15 @@ export class MigrationManager {
         }
 
         executed.push(migration.id);
-        console.log(`✅ Migration completed: ${migration.id}`);
+        this.logger.info('Migration completed', { id: migration.id, name: migration.name });
         
       } catch (error) {
-        console.error(`❌ Migration failed: ${migration.id}`, error);
+        this.logger.error('Migration failed', { id: migration.id, name: migration.name, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
         throw error;
       }
     }
 
-    console.log(`🎉 Migration complete! Executed ${executed.length} migrations`);
+    this.logger.info('Migration complete', { executedCount: executed.length, executedMigrations: executed });
     return { executed, skipped: executedMigrations };
   }
 
@@ -178,10 +180,9 @@ export class MigrationManager {
 -- CREATE INDEX idx_example_table_name ON example_table(name);
 `;
 
-    console.log(`Creating migration file: ${fileName}`);
-    console.log(`Path: ${filePath}`);
-    console.log('Template content:');
-    console.log(template);
+    this.logger.info('Creating migration file', { fileName });
+    this.logger.info('Migration file path', { filePath });
+    this.logger.info('Migration template content', { template });
     
     return fileName;
   }
@@ -221,12 +222,16 @@ export class MigrationManager {
 
 // CLI interface
 export async function runMigrations(): Promise<void> {
+  const logger = createLogger({ context: 'MigrationCLI' });
   const manager = new MigrationManager();
   
   try {
     await manager.migrate();
   } catch (error) {
-    console.error('Migration failed:', error);
+    logger.error('Migration failed', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     process.exit(1);
   }
 }

@@ -13,6 +13,7 @@ import * as path from 'path';
 dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createLogger } from '@cinnamon-qa/logger';
 import type { Database } from './types/database';
 import { DatabaseError } from './types';
 
@@ -33,6 +34,7 @@ export interface DatabaseConfig {
 export class DatabaseClient {
   private _client: SupabaseClient<Database>;
   private _config: DatabaseConfig;
+  private logger = createLogger({ context: 'DatabaseClient' });
 
   constructor(config?: DatabaseConfig) {
     this._config = config || this.getDefaultConfig();
@@ -126,7 +128,7 @@ export class DatabaseClient {
   async transaction<T>(callback: (client: DatabaseClient) => Promise<T>): Promise<T> {
     // For now, just execute the callback
     // In the future, this could be implemented with a proper transaction-supporting database
-    console.warn('Transactions are not supported with Supabase. Operations will be executed sequentially.');
+    this.logger.warn('Transactions are not supported with Supabase. Operations will be executed sequentially.');
     return callback(this);
   }
 

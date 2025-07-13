@@ -10,9 +10,11 @@
  */
 
 import { TestStep } from '../types';
+import { createLogger } from '@cinnamon-qa/logger';
 
 export class PlaywrightService {
   private connection: any = null; // TODO: Add proper MCP connection type
+  private logger = createLogger({ context: 'PlaywrightService' });
   
   constructor() {
     // TODO: Initialize Playwright MCP connection
@@ -20,14 +22,14 @@ export class PlaywrightService {
 
   async initialize(): Promise<void> {
     // TODO: Connect to Playwright MCP container
-    console.log('🎭 Initializing Playwright MCP connection...');
-    console.log('✅ Playwright MCP connection established');
+    this.logger.info('Initializing Playwright MCP connection');
+    this.logger.info('Playwright MCP connection established');
     // Temporary usage to avoid TypeScript error
-    if (this.connection) console.log('Connection ready');
+    if (this.connection) this.logger.info('Connection ready');
   }
 
   async executeStep(step: TestStep): Promise<{ success: boolean; screenshot?: string; error?: string }> {
-    console.log(`🎬 Executing step: ${step.action}`);
+    this.logger.info('Executing step', { action: step.action, selector: step.selector, value: step.value });
     
     try {
       switch (step.action) {
@@ -47,7 +49,12 @@ export class PlaywrightService {
           throw new Error(`Unknown action: ${step.action}`);
       }
     } catch (error) {
-      console.error(`❌ Step execution failed:`, error);
+      this.logger.error('Step execution failed', { 
+        action: step.action, 
+        selector: step.selector,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -57,7 +64,7 @@ export class PlaywrightService {
 
   private async navigate(url: string): Promise<{ success: boolean; screenshot?: string }> {
     // TODO: Implement navigation using Playwright MCP
-    console.log(`🌐 Navigating to: ${url}`);
+    this.logger.info('Navigating to URL', { url });
     
     // Simulate navigation
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -70,7 +77,7 @@ export class PlaywrightService {
 
   private async click(selector: string): Promise<{ success: boolean; screenshot?: string }> {
     // TODO: Implement click using Playwright MCP
-    console.log(`👆 Clicking: ${selector}`);
+    this.logger.info('Clicking element', { selector });
     
     // Simulate click
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -83,7 +90,7 @@ export class PlaywrightService {
 
   private async type(selector: string, text: string): Promise<{ success: boolean; screenshot?: string }> {
     // TODO: Implement typing using Playwright MCP
-    console.log(`⌨️  Typing "${text}" into: ${selector}`);
+    this.logger.info('Typing text into element', { selector, text });
     
     // Simulate typing
     await new Promise(resolve => setTimeout(resolve, 400));
@@ -96,7 +103,7 @@ export class PlaywrightService {
 
   private async assert(selector: string, expectedText: string): Promise<{ success: boolean; screenshot?: string }> {
     // TODO: Implement assertion using Playwright MCP
-    console.log(`✅ Asserting "${expectedText}" in: ${selector}`);
+    this.logger.info('Asserting text in element', { selector, expectedText });
     
     // Simulate assertion
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -109,12 +116,12 @@ export class PlaywrightService {
 
   async takeScreenshot(): Promise<string> {
     // TODO: Take screenshot using Playwright MCP
-    console.log('📸 Taking screenshot...');
+    this.logger.info('Taking screenshot');
     return 'placeholder-screenshot-url';
   }
 
   async cleanup(): Promise<void> {
     // TODO: Clean up Playwright resources
-    console.log('🧹 Cleaning up Playwright resources...');
+    this.logger.info('Cleaning up Playwright resources');
   }
 }

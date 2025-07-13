@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Playwright-MCP Container Pool (2 fixed containers)
+  playwright-mcp-1:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    container_name: cinnamon-qa-mcp-1
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    command: ["--headless", "--host", "0.0.0.0", "--port", "3000", "--isolated"]
+    environment:
+      - CONTAINER_POOL_ID=container-1
+    networks:
+      - cinnamon-qa-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5s bash -c '</dev/tcp/localhost/3000' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    mem_limit: 512m
+    cpus: 0.5
+
+  playwright-mcp-2:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    container_name: cinnamon-qa-mcp-2
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    command: ["--headless", "--host", "0.0.0.0", "--port", "3000", "--isolated"]
+    environment:
+      - CONTAINER_POOL_ID=container-2
+    networks:
+      - cinnamon-qa-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5s bash -c '</dev/tcp/localhost/3000' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    mem_limit: 512m
+    cpus: 0.5
+
+networks:
+  cinnamon-qa-network:
+    external: true

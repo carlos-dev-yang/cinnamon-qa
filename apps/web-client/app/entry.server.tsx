@@ -12,8 +12,11 @@ import { ServerRouter } from 'react-router';
 import { isbot } from 'isbot';
 import type { RenderToPipeableStreamOptions } from 'react-dom/server';
 import { renderToPipeableStream } from 'react-dom/server';
+import { createLogger } from '@cinnamon-qa/logger';
 
 export const streamTimeout = 5_000;
+
+const logger = createLogger({ context: 'ServerRenderer' });
 
 export default function handleRequest(
   request: Request,
@@ -61,7 +64,7 @@ export default function handleRequest(
           // errors encountered during initial shell rendering since they'll
           // reject and get logged in handleDocumentRequest.
           if (shellRendered) {
-            console.error(error);
+            logger.error('Streaming rendering error', { error, url: request.url });
           }
         },
       }

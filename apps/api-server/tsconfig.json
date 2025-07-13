@@ -4,6 +4,15 @@
   "include": [],
   "references": [
     {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/queue"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "./tsconfig.app.json"
     }
   ]

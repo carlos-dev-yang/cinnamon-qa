@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { createLogger } from '@cinnamon-qa/logger';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -12,22 +13,24 @@ import {
   type TestJobData 
 } from './src';
 
+const logger = createLogger({ context: 'QueueTest' });
+
 async function testQueueSystem() {
-  console.log('🔍 Testing Redis and BullMQ queue system...');
+  logger.info('Testing Redis and BullMQ queue system');
   
   try {
     // Test Redis connection
-    console.log('\n📡 Testing Redis connection...');
+    logger.info('Testing Redis connection');
     const redisClient = await connectRedis();
     const isHealthy = await redisClient.healthCheck();
-    console.log('✅ Redis connection:', isHealthy ? 'Healthy' : 'Failed');
+    logger.info('Redis connection status', { healthy: isHealthy });
     
     if (!isHealthy) {
       throw new Error('Redis connection failed');
     }
 
     // Test queue manager
-    console.log('\n🎯 Testing queue manager...');
+    logger.info('Testing queue manager');
     const queueManager = getQueueManager();
     
     // Create test job data
@@ -45,31 +48,31 @@ async function testQueueSystem() {
     };
 
     // Add a test job
-    console.log('\n📋 Adding test job to queue...');
+    logger.info('Adding test job to queue');
     const job = await queueManager.addTestJob(testJobData, {
       priority: JobPriority.HIGH,
       attempts: 3,
     });
-    console.log(`✅ Test job added with ID: ${job.id}`);
+    logger.info('Test job added', { jobId: job.id });
 
     // Get queue statistics
-    console.log('\n📊 Getting queue statistics...');
+    logger.info('Getting queue statistics');
     const stats = await queueManager.getQueueStats(QueueNames.TEST_EXECUTION);
-    console.log('✅ Queue stats:', stats);
+    logger.info('Queue statistics', { stats });
 
     // Clean up the test job
-    console.log('\n🧹 Cleaning up...');
+    logger.info('Cleaning up test job');
     await job.remove();
-    console.log('✅ Test job removed');
+    logger.info('Test job removed', { jobId: job.id });
 
     // Close connections
     await queueManager.close();
     await redisClient.disconnect();
     
-    console.log('\n🎉 All queue tests passed! Redis and BullMQ are working correctly.');
+    logger.info('All queue tests passed! Redis and BullMQ are working correctly.');
     
   } catch (error) {
-    console.error('❌ Queue test failed:', error);
+    logger.error('Queue test failed', { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   }
 }

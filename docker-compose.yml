@@ -10,6 +10,8 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    networks:
+      - cinnamon-qa-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -28,7 +30,28 @@ services:
       - REDIS_HOSTS=local:redis:6379
     depends_on:
       - redis
+    networks:
+      - cinnamon-qa-network
+
+  # Playwright-MCP Test Container
+  playwright-mcp-test:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    container_name: cinnamon-qa-playwright-mcp-test
+    restart: "no"
+    ports:
+      - "3000:3000"
+    command: ["--headless", "--host", "0.0.0.0", "--port", "3000", "--isolated"]
+    environment:
+      - CONTAINER_POOL_ID=test-container-001
+    networks:
+      - cinnamon-qa-network
+    mem_limit: 512m
+    cpus: 0.5
 
 volumes:
   redis_data:
     driver: local
+
+networks:
+  cinnamon-qa-network:
+    driver: bridge
