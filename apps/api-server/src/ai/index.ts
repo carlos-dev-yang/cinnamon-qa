@@ -8,6 +8,9 @@ export { ScenarioAnalyzer, getScenarioAnalyzer } from './services/scenario-analy
 export { ScenarioParser, PartialResultRecovery } from './parsers/scenario-parser';
 export * from './prompts/scenario-analysis';
 
+// Export MCP tools integration
+export { MCPToolManager, getMCPToolManager, resetMCPToolManager } from './execution/mcp-tool-manager';
+
 // Export AI types
 export * from './types';
 
@@ -45,3 +48,12 @@ export type {
   AnalyzeScenarioRequest,
   AnalyzeScenarioResponse,
 } from './services/scenario-analyzer';
+
+export type {
+  MCPTool,
+  GeminiTool,
+  MCPToolCall,
+  MCPToolResponse,
+  MCPConnectionStatus,
+  MCPClient,
+} from './types/mcp';
