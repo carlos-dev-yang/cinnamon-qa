@@ -63,8 +63,9 @@ export class MCPToolManager {
 
       return geminiTools;
     } catch (error) {
-      logger.error('Failed to fetch MCP tools', { error: error.message });
-      throw new Error(`MCP 도구 목록 조회 실패: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to fetch MCP tools', { error: errorMessage });
+      throw new Error(`MCP 도구 목록 조회 실패: ${errorMessage}`);
     }
   }
 
@@ -135,7 +136,7 @@ export class MCPToolManager {
     } catch (error) {
       logger.error('Tool call test failed', { 
         toolName, 
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error' 
       });
       throw error;
     }
@@ -161,16 +162,17 @@ export class MCPToolManager {
 
       return response;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Tool call failed', {
         toolName: toolCall.name,
-        error: error.message
+        error: errorMessage
       });
       
       // 에러를 MCPToolResponse 형식으로 반환
       return {
         content: null,
         isError: true,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -191,7 +193,8 @@ export class MCPToolManager {
       logger.debug('Connection check successful', status);
       return status;
     } catch (error) {
-      logger.warn('Connection check failed', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.warn('Connection check failed', { error: errorMessage });
       
       return {
         connected: false,

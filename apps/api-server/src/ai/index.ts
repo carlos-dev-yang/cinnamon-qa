@@ -11,6 +11,10 @@ export * from './prompts/scenario-analysis';
 // Export MCP tools integration
 export { MCPToolManager, getMCPToolManager, resetMCPToolManager } from './execution/mcp-tool-manager';
 
+// Export adaptive chat session management
+export { AdaptiveChatEngine } from './execution/adaptive-chat-engine';
+export { ChatSessionManager, getChatSessionManager, resetChatSessionManager } from './execution/chat-session-manager';
+
 // Export AI types
 export * from './types';
 
@@ -27,8 +31,6 @@ export type {
 export type { GeminiConfig } from './gemini/config';
 
 export type {
-  MCPTool,
-  MCPResponse,
   AnalysisResult,
   AIAnalysisStep,
   StepFeedback,
@@ -57,3 +59,10 @@ export type {
   MCPConnectionStatus,
   MCPClient,
 } from './types/mcp';
+
+export type {
+  ChatSession,
+  ChatContext,
+  AdaptationRecord,
+  ToolCallRequest,
+} from './execution/adaptive-chat-engine';
