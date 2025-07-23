@@ -36,7 +36,7 @@ async function testHealthMonitoring() {
     logger.info('Starting allocation and release test');
     const container1 = await poolManager.allocateContainer('test-run-1');
     if (container1) {
-      logger.info('Container allocated successfully', { containerId: container1.containerId });
+      logger.info('Container allocated successfully', { containerId: container1.id });
     } else {
       logger.warn('Container allocation returned null');
     }
@@ -48,8 +48,8 @@ async function testHealthMonitoring() {
 
     // Release container
     if (container1) {
-      await poolManager.releaseContainer(container1.containerId);
-      logger.info('Container released successfully', { containerId: container1.containerId });
+      await poolManager.releaseContainer(container1.id);
+      logger.info('Container released successfully', { containerId: container1.id });
     }
 
     // Show dashboard after release

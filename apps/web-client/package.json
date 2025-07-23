@@ -2,10 +2,17 @@
   "name": "@cinnamon-qa/web-client",
   "private": true,
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "build": "react-router build",
+    "dev": "react-router dev",
+    "start": "react-router start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest"
+  },
   "sideEffects": false,
   "dependencies": {
-    "@cinnamon-qa/logger": "^0.0.1",
+    "@cinnamon-qa/logger": "workspace:*",
     "@react-router/node": "^7.2.0",
     "@react-router/serve": "^7.2.0",
     "isbot": "^4.4.0",

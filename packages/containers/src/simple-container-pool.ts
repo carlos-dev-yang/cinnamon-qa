@@ -49,7 +49,7 @@ export class SimpleContainerPool {
         
         // Initialize Redis state
         await this.updateContainerState(config.id, {
-          containerId: config.id,
+          id: config.id,
           port: config.port,
           allocated: false,
           lastCheckedAt: new Date(),
@@ -76,10 +76,10 @@ export class SimpleContainerPool {
     }
 
     // Health check with container name for comprehensive verification
-    const containerObj = this.containers.get(availableContainer.containerId);
+    const containerObj = this.containers.get(availableContainer.id);
     const containerName = containerObj?.name;
     
-    this.logger.info('Checking health for container', { containerId: availableContainer.containerId, containerName, port: availableContainer.port });
+    this.logger.info('Checking health for container', { containerId: availableContainer.id, containerName, port: availableContainer.port });
     
     const isHealthy = await this.healthChecker.isContainerReady(
       availableContainer.port, 
@@ -182,7 +182,7 @@ export class SimpleContainerPool {
 
     // Update Redis state
     await this.updateContainerState(containerId, {
-      containerId,
+      id: containerId,
       port: container.port,
       allocated: false,
       lastCheckedAt: new Date(),
@@ -270,7 +270,7 @@ export class SimpleContainerPool {
     if (!container) return;
 
     await this.updateContainerState(containerId, {
-      containerId,
+      id: containerId,
       port: container.port,
       allocated: true,
       allocatedTo: testRunId,
@@ -290,7 +290,7 @@ export class SimpleContainerPool {
     }
 
     return {
-      containerId: data.containerId,
+      id: data.containerId,
       port: parseInt(data.port),
       allocated: data.allocated === 'true',
       allocatedTo: data.allocatedTo || undefined,
@@ -307,7 +307,7 @@ export class SimpleContainerPool {
     state: ContainerState
   ): Promise<void> {
     const data: Record<string, string> = {
-      containerId: state.containerId,
+      containerId: state.id,
       port: state.port.toString(),
       allocated: state.allocated.toString(),
       lastCheckedAt: state.lastCheckedAt?.toISOString() || new Date().toISOString(),

@@ -15,7 +15,7 @@ export enum ContainerStatus {
 }
 
 export interface ContainerState {
-  containerId: string;
+  id: string;
   port: number;
   allocated: boolean;
   allocatedTo?: string; // testRunId

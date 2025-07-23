@@ -2,70 +2,15 @@
   "name": "@cinnamon-qa/worker",
   "version": "0.0.1",
   "private": true,
-  "dependencies": {
-    "@cinnamon-qa/logger": "^0.0.1",
-    "@cinnamon-qa/queue": "^1.0.0",
-    "@cinnamon-qa/database": "^1.0.0"
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --outdir=dist --format=cjs --sourcemap --external:@cinnamon-qa/*",
+    "dev": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
-  "nx": {
-    "targets": {
-      "build": {
-        "executor": "@nx/esbuild:esbuild",
-        "outputs": [
-          "{options.outputPath}"
-        ],
-        "defaultConfiguration": "production",
-        "options": {
-          "platform": "node",
-          "outputPath": "apps/worker/dist",
-          "format": [
-            "cjs"
-          ],
-          "bundle": false,
-          "main": "apps/worker/src/main.ts",
-          "tsConfig": "apps/worker/tsconfig.app.json",
-          "assets": [
-            "apps/worker/src/assets"
-          ],
-          "esbuildOptions": {
-            "sourcemap": true,
-            "outExtension": {
-              ".js": ".js"
-            }
-          }
-        },
-        "configurations": {
-          "development": {},
-          "production": {
-            "esbuildOptions": {
-              "sourcemap": false,
-              "outExtension": {
-                ".js": ".js"
-              }
-            }
-          }
-        }
-      },
-      "serve": {
-        "continuous": true,
-        "executor": "@nx/js:node",
-        "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
-        "options": {
-          "buildTarget": "@cinnamon-qa/worker:build",
-          "runBuildTargetDependencies": false
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "@cinnamon-qa/worker:build:development"
-          },
-          "production": {
-            "buildTarget": "@cinnamon-qa/worker:build:production"
-          }
-        }
-      }
-    }
+  "dependencies": {
+    "@cinnamon-qa/logger": "workspace:*",
+    "@cinnamon-qa/queue": "workspace:*",
+    "@cinnamon-qa/database": "workspace:*"
   }
 }

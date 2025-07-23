@@ -5,12 +5,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --build",
     "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@cinnamon-qa/logger": "^0.0.1",
+    "@cinnamon-qa/logger": "workspace:*",
     "bullmq": "^5.34.5",
     "ioredis": "^5.4.1"
   },
@@ -19,6 +21,6 @@
     "typescript": "^5.7.2"
   },
   "peerDependencies": {
-    "@cinnamon-qa/database": "^1.0.0"
+    "@cinnamon-qa/database": "workspace:*"
   }
 }

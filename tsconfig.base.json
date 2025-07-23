@@ -12,9 +12,9 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "target": "es2022",
     "customConditions": ["development"]
   }

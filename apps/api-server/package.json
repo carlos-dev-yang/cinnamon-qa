@@ -2,10 +2,16 @@
   "name": "@cinnamon-qa/api-server",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --outdir=dist --format=cjs --sourcemap --external:@cinnamon-qa/*",
+    "dev": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
   "dependencies": {
-    "@cinnamon-qa/database": "^1.0.0",
-    "@cinnamon-qa/logger": "^0.0.1",
-    "@cinnamon-qa/queue": "^1.0.0",
+    "@cinnamon-qa/database": "workspace:*",
+    "@cinnamon-qa/logger": "workspace:*",
+    "@cinnamon-qa/queue": "workspace:*",
     "@fastify/autoload": "~6.0.3",
     "@fastify/cors": "^11.0.1",
     "@fastify/sensible": "~6.0.2",
@@ -16,66 +22,5 @@
     "fastify-plugin": "~5.0.1",
     "superjson": "^2.2.2",
     "zod": "^4.0.5"
-  },
-  "nx": {
-    "targets": {
-      "build": {
-        "executor": "@nx/esbuild:esbuild",
-        "outputs": [
-          "{options.outputPath}"
-        ],
-        "defaultConfiguration": "production",
-        "options": {
-          "platform": "node",
-          "outputPath": "apps/api-server/dist",
-          "format": [
-            "cjs"
-          ],
-          "bundle": false,
-          "main": "apps/api-server/src/main.ts",
-          "tsConfig": "apps/api-server/tsconfig.app.json",
-          "assets": [
-            "apps/api-server/src/assets"
-          ],
-          "esbuildOptions": {
-            "sourcemap": true,
-            "outExtension": {
-              ".js": ".js"
-            }
-          }
-        },
-        "configurations": {
-          "development": {},
-          "production": {
-            "esbuildOptions": {
-              "sourcemap": false,
-              "outExtension": {
-                ".js": ".js"
-              }
-            }
-          }
-        }
-      },
-      "serve": {
-        "continuous": true,
-        "executor": "@nx/js:node",
-        "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
-        "options": {
-          "buildTarget": "@cinnamon-qa/api-server:build",
-          "runBuildTargetDependencies": false
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "@cinnamon-qa/api-server:build:development"
-          },
-          "production": {
-            "buildTarget": "@cinnamon-qa/api-server:build:production"
-          }
-        }
-      }
-    }
   }
 }

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { createLogger } from '@cinnamon-qa/logger';
 import { RedisClient } from '@cinnamon-qa/queue';
-import { Container, ContainerState } from './types';
+import { Container } from './types';
 
 export enum TestPriority {
   LOW = 'low',

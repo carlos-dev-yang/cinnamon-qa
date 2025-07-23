@@ -28,7 +28,7 @@ async function testCleanupAndReset() {
     logger.info('Starting Test 1: Allocation with automatic reset');
     const container1 = await poolManager.allocateContainer('test-run-1');
     if (container1) {
-      logger.info('Container allocated successfully', { containerId: container1.containerId });
+      logger.info('Container allocated successfully', { containerId: container1.id });
     } else {
       logger.warn('Container allocation returned null');
     }
@@ -40,34 +40,34 @@ async function testCleanupAndReset() {
     // Test 2: Release with automatic cleanup
     logger.info('Starting Test 2: Release with automatic cleanup');
     if (container1) {
-      await poolManager.releaseContainer(container1.containerId);
-      logger.info('Container released successfully', { containerId: container1.containerId });
+      await poolManager.releaseContainer(container1.id);
+      logger.info('Container released successfully', { containerId: container1.id });
     }
 
     // Test 3: Manual cleanup
     logger.info('Starting Test 3: Manual cleanup test');
     const container2 = await poolManager.allocateContainer('test-run-2');
     if (container2) {
-      logger.info('Container allocated for manual cleanup test', { containerId: container2.containerId });
+      logger.info('Container allocated for manual cleanup test', { containerId: container2.id });
       
       // Perform manual cleanup
-      await poolManager.cleanupContainer(container2.containerId);
-      logger.info('Manual cleanup completed successfully', { containerId: container2.containerId });
+      await poolManager.cleanupContainer(container2.id);
+      logger.info('Manual cleanup completed successfully', { containerId: container2.id });
       
-      await poolManager.releaseContainer(container2.containerId);
+      await poolManager.releaseContainer(container2.id);
     }
 
     // Test 4: Manual reset with different strategies
     logger.info('Starting Test 4: Manual reset strategies test');
     const container3 = await poolManager.allocateContainer('test-run-3');
     if (container3) {
-      logger.info('Container allocated for reset test', { containerId: container3.containerId });
+      logger.info('Container allocated for reset test', { containerId: container3.id });
       
       // Test manual reset
-      await poolManager.resetContainer(container3.containerId);
-      logger.info('Manual reset completed successfully', { containerId: container3.containerId });
+      await poolManager.resetContainer(container3.id);
+      logger.info('Manual reset completed successfully', { containerId: container3.id });
       
-      await poolManager.releaseContainer(container3.containerId);
+      await poolManager.releaseContainer(container3.id);
     }
 
     // Test 5: Configuration and statistics
@@ -116,9 +116,9 @@ async function testCleanupAndReset() {
     logger.info('Starting Test 8: Test without auto-reset on allocation');
     const container4 = await poolManager.allocateContainer('test-run-4');
     if (container4) {
-      logger.info('Container allocated without auto-reset', { containerId: container4.containerId });
-      await poolManager.releaseContainer(container4.containerId);
-      logger.info('Container released with auto-reset on release', { containerId: container4.containerId });
+      logger.info('Container allocated without auto-reset', { containerId: container4.id });
+      await poolManager.releaseContainer(container4.id);
+      logger.info('Container released with auto-reset on release', { containerId: container4.id });
     }
 
     // Test 9: Reset statistics
@@ -142,7 +142,7 @@ async function testCleanupAndReset() {
 
     // Test 11: Concurrent operations
     logger.info('Starting Test 11: Concurrent cleanup/reset operations');
-    const concurrentPromises = [];
+    const concurrentPromises: Promise<void>[] = [];
     
     // Allocate both containers
     const concurrentContainer1 = await poolManager.allocateContainer('concurrent-1');
@@ -151,18 +151,18 @@ async function testCleanupAndReset() {
     if (concurrentContainer1 && concurrentContainer2) {
       // Try concurrent cleanup and reset
       concurrentPromises.push(
-        poolManager.cleanupContainer(concurrentContainer1.containerId)
+        poolManager.cleanupContainer(concurrentContainer1.id)
       );
       concurrentPromises.push(
-        poolManager.resetContainer(concurrentContainer2.containerId)
+        poolManager.resetContainer(concurrentContainer2.id)
       );
       
       await Promise.allSettled(concurrentPromises);
       logger.info('Concurrent cleanup and reset operations completed successfully');
       
       // Release containers
-      await poolManager.releaseContainer(concurrentContainer1.containerId);
-      await poolManager.releaseContainer(concurrentContainer2.containerId);
+      await poolManager.releaseContainer(concurrentContainer1.id);
+      await poolManager.releaseContainer(concurrentContainer2.id);
     }
 
     logger.info('All cleanup and reset tests completed successfully');

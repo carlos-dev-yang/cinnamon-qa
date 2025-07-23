@@ -64,7 +64,7 @@ export class HealthDashboard {
     const healthStatuses = this.healthMonitor.getHealthStatus();
 
     const containerDetails = healthStatuses.map(health => {
-      const poolContainer = poolStatus.containers.find(c => c.containerId === health.containerId);
+      const poolContainer = poolStatus.containers.find(c => c.id === health.containerId);
       
       // Get recent errors from health history
       const recentErrors = health.healthHistory

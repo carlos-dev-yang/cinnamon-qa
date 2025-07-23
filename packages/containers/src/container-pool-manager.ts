@@ -254,7 +254,7 @@ export class ContainerPoolManager {
         
         // Initialize Redis state
         await this.updateContainerState(config.id, {
-          containerId: config.id,
+          id: config.id,
           port: config.port,
           allocated: false,
           lastCheckedAt: new Date(),
@@ -383,7 +383,7 @@ export class ContainerPoolManager {
     }
 
     // Health check
-    const containerObj = this.containers.get(availableContainer.containerId);
+    const containerObj = this.containers.get(availableContainer.id);
     const containerName = containerObj?.name;
     
     const isHealthy = await this.healthChecker.isContainerReady(
@@ -392,7 +392,7 @@ export class ContainerPoolManager {
     );
     
     if (!isHealthy) {
-      this.logger.info('Container is unhealthy, attempting restart', { containerId: availableContainer.containerId });
+      this.logger.info('Container is unhealthy, attempting restart', { containerId: availableContainer.id });
       
       // Try to restart and check again
       if (containerObj) {
@@ -406,11 +406,11 @@ export class ContainerPoolManager {
           );
           
           if (!isHealthyAfterRestart) {
-            this.logger.info('Container still unhealthy after restart', { containerId: availableContainer.containerId });
+            this.logger.info('Container still unhealthy after restart', { containerId: availableContainer.id });
             return null;
           }
         } catch (error) {
-          this.logger.error('Failed to restart container', { containerId: availableContainer.containerId, error });
+          this.logger.error('Failed to restart container', { containerId: availableContainer.id, error });
           return null;
         }
       }
@@ -419,11 +419,11 @@ export class ContainerPoolManager {
     // Perform reset on allocation if enabled
     const resetResult = await this.resetManager.resetOnAllocation(containerObj);
     if (resetResult && !resetResult.success) {
-      this.logger.warn('Reset on allocation failed, proceeding anyway', { containerId: availableContainer.containerId });
+      this.logger.warn('Reset on allocation failed, proceeding anyway', { containerId: availableContainer.id });
     }
 
     // Allocate container
-    await this.markAsAllocated(availableContainer.containerId, testRunId);
+    await this.markAsAllocated(availableContainer.id, testRunId);
     if (containerObj) {
       containerObj.allocate(testRunId);
       return containerObj.getInfo();
@@ -501,7 +501,7 @@ export class ContainerPoolManager {
 
     // Update Redis state
     await this.updateContainerState(containerId, {
-      containerId,
+      id: containerId,
       port: container.port,
       allocated: false,
       lastCheckedAt: new Date(),
@@ -633,7 +633,7 @@ export class ContainerPoolManager {
     if (!container) return;
 
     await this.updateContainerState(containerId, {
-      containerId,
+      id: containerId,
       port: container.port,
       allocated: true,
       allocatedTo: testRunId,
@@ -650,7 +650,7 @@ export class ContainerPoolManager {
     }
 
     return {
-      containerId: data.containerId,
+      id: data.containerId,
       port: parseInt(data.port),
       allocated: data.allocated === 'true',
       allocatedTo: data.allocatedTo || undefined,
@@ -664,7 +664,7 @@ export class ContainerPoolManager {
     state: ContainerState
   ): Promise<void> {
     const data: Record<string, string> = {
-      containerId: state.containerId,
+      containerId: state.id,
       port: state.port.toString(),
       allocated: state.allocated.toString(),
       lastCheckedAt: state.lastCheckedAt?.toISOString() || new Date().toISOString(),
