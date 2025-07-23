@@ -24,13 +24,24 @@
 - Use descriptive commit messages with task reference
 - Follow conventional commit format: `type(scope): description [task-id]`
 
-### 5. GitHub Issue Synchronization
+### 5. Documentation Protocol
+- Create documentation for EVERY subtask in two phases: PLANNING and COMPLETION
+- Documentation file format: `docs/task-{id}-{title}.md` (e.g., `docs/task-5.1-gemini-api-client-implementation.md`)
+- **Phase 1 - PLANNING**: Create planning document before starting subtask work
+  - File header: `> **상태**: 📋 계획 단계`
+  - Include: objectives, approach, implementation plan, expected outcomes
+- **Phase 2 - COMPLETION**: Update same file after subtask completion
+  - File header: `> **상태**: ✅ 완료`
+  - Add: actual implementation details, test results, file structure, lessons learned
+- Never skip either documentation phase
+
+### 6. GitHub Issue Synchronization
 - Create/update GitHub issue for each main task
 - Log all progress as issue comments
 - Update issue status labels to match task status
 - Close issue when task is marked as done
 
-### 6. Task Management via Task Master
+### 7. Task Management via Task Master
 - NEVER manually create or modify tasks
 - Use Task Master commands exclusively
 - All task modifications must go through Task Master
@@ -41,10 +52,12 @@
 2. **Create branch** → `git checkout -b task/<main-task-id>-<description>`
 3. **Create/update issue** → GitHub issue with task details
 4. **Set status** → Update task status to in-progress
-5. **Work on subtasks** → Complete each with individual commits
-6. **Log progress** → Update notes and issue comments
-7. **Complete** → Set status to done, close issue
-8. **STOP** → Ask user before proceeding
+5. **Plan subtask** → Create planning documentation (📋 계획 단계)
+6. **Work on subtasks** → Complete each with individual commits
+7. **Document completion** → Update same file with completion details (✅ 완료)
+8. **Log progress** → Update notes and issue comments
+9. **Complete** → Set status to done, close issue
+10. **STOP** → Ask user before proceeding
 
 ## Quick Command Reference
 
@@ -60,7 +73,9 @@ task-master update-subtask --id=<id> --prompt=""  # Log progress
 - **NEVER** work on multiple tasks simultaneously
 - **NEVER** proceed to next task without permission
 - **ALWAYS** create task-specific branch for main tasks
+- **ALWAYS** create planning documentation before starting subtask work
 - **ALWAYS** commit after each subtask completion
+- **ALWAYS** update documentation to completion status after subtask finish
 - **ALWAYS** sync with GitHub issues
 - **FOCUS** only on the assigned task scope
 
