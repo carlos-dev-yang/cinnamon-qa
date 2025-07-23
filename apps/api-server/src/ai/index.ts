@@ -15,6 +15,11 @@ export { MCPToolManager, getMCPToolManager, resetMCPToolManager } from './execut
 export { AdaptiveChatEngine } from './execution/adaptive-chat-engine';
 export { ChatSessionManager, getChatSessionManager, resetChatSessionManager } from './execution/chat-session-manager';
 
+// Export feedback loop system
+export { FeedbackLoopEngine, getFeedbackLoopEngine, resetFeedbackLoopEngine } from './execution/feedback-loop-engine';
+export { ToolExecutionHandler } from './execution/tool-execution-handler';
+export { ResultProcessor } from './execution/result-processor';
+
 // Export AI types
 export * from './types';
 
@@ -66,3 +71,17 @@ export type {
   AdaptationRecord,
   ToolCallRequest,
 } from './execution/adaptive-chat-engine';
+
+export type {
+  FeedbackLoopContext,
+  ExecutionStep,
+  ToolCallExecution,
+} from './execution/feedback-loop-engine';
+
+export type {
+  ToolExecutionResult,
+} from './execution/tool-execution-handler';
+
+export type {
+  ProcessedResult,
+} from './execution/result-processor';
